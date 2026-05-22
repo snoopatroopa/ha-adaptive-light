@@ -108,3 +108,12 @@ with open('sensor-light-lux.yaml') as f:
 - [ ] Testen ob Branch-4-Fix das "Lampen bleiben an"-Problem vollständig löst
 - [ ] Repo auf Public stellen nach erfolgreichem Test
 - [ ] HA Community Forum Post wenn stabil
+
+---
+
+## Changelog
+
+### v5.3.1 – Branch-4-Condition nativ
+**Änderung:** `"{{ trigger.id != 'switch' }}"` in Branch 4 durch native
+`condition: not / condition: trigger id: switch` ersetzt.
+**Grund:** Wird bei HA-Load validiert statt erst zur Laufzeit (HA Skill Best Practice).
