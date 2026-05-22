@@ -1,0 +1,2419 @@
+blueprint:
+  name: Sensor Light – Lux-Regelung
+  description: >
+    # 💡 Sensor Light – Lux-Regelung
+
+    **Version: 5.3**
+
+
+    Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
+    Bis zu 5 Trigger-Sensoren, **5 individuell kalibrierbare Lampen**,
+    flexibles **Zeitraum-System mit 5 Slots**, Nachtlicht-Modus,
+    Zusatz-Schalter-Trigger, **automatisches Nachtriggern bei
+    abnehmendem** und **automatisches Ausschalten bei zunehmendem**
+    Umgebungslicht.
+
+
+    <details>
+    <summary><b>Betriebsmodi & Ablauf:</b> 👈</summary>
+
+    **Priorität:** Zusatz-Trigger > Nachtlicht > Lux-Regelung / Konstant / Aus
+
+
+    - 🔆 **Lux-Regelung:** Bewegung → Lux-Check → Einschalten per Lichtkurve →
+      Regelschleife hält Ziel-Lux → Nachlauf → Aus.
+
+    - 💡 **Konstant:** Bewegung → Einschalten auf konfigurierter Helligkeit →
+      kein Nachregeln → Nachlauf → Aus.
+
+    - 🌙 **Nachtlicht:** Bewegung → Einschalten auf Nachtlicht-Helligkeit + eigener Farbe →
+      kein Nachregeln → kurzer Nachlauf → Aus. Pro Lampe deaktivierbar.
+
+    - ⛔ **Aus:** Keine Reaktion auf Bewegung.
+
+
+    **Farbpriorität (pro Modus):** RGB überschreibt Farbtemperatur wenn beide aktiviert sind.
+    Nachtlicht-Farbe ist unabhängig von der Hauptfarbe (Lux/Konstant/Schalter).
+
+    </details>
+
+
+    <details>
+    <summary><b>Lichtkurve kalibrieren:</b> 👈</summary>
+
+    Die Lichtkurve hat zwei Reiter:
+
+    - **Lux-Messpunkte (X-Achse):** 5 Umgebungslux-Werte, gemeinsam für alle Lampen.
+
+    - **Helligkeiten pro Lampe (Y-Achse):** 25 Helligkeitswerte (5 Punkte × 5 Lampen).
+
+
+    Kalibrier-Workflow: Lux im Raum ablesen (Licht aus) → Lampen manuell so dimmen
+    dass Ziel-Lux erreicht wird → Werte eintragen.
+
+    </details>
+
+
+    <details>
+    <summary><b>Automatisches Nachtriggern & Ausschalten:</b> 👈</summary>
+
+    **Nachtriggern (Licht an):** Wenn man länger im Raum sitzt und das
+    Umgebungslicht abnimmt (z.B. Sonnenuntergang), schaltet sich das Licht
+    automatisch ein sobald der Lux-Wert für eine bestimmte Zeit unter den
+    Schwellwert fällt.
+
+
+    **Auto-Ausschalten (Licht aus):** Umgekehrt – wenn das Umgebungslicht
+    bei laufender Lux-Regelung heller wird, regelt die Schleife die Lampen
+    nach unten. Sobald Lampe 1 unter den Auto-Off-Schwellwert (Default 3 %)
+    gefallen ist UND es immer noch zu hell ist, gehen alle Lampen aus.
+    Bleibt Präsenz aktiv, kann das Nachtriggern später wieder einschalten.
+
+
+    Beide Features sind aktiv nur im **Lux-Modus** bei aktiver Präsenz.
+    Deaktivieren durch Setzen des jeweiligen Schwellwerts auf 0.
+
+    </details>
+
+
+    <details>
+    <summary><b>Changelog:</b> 👈</summary>
+
+    **v5.3** – Bugfix: Aufräum-Branch (Branch 4) prüfte bisher nur ob Lampe 1
+    an ist. Wenn Lampe 1 durch Auto-Off oder einen unterbrochenen Ausschalt-Zyklus
+    bereits aus war, blieben Lampen 2–5 dauerhaft an. Fix: Branch 4 greift jetzt
+    wenn **irgendeine** konfigurierte Lampe noch leuchtet.
+
+    **v5.2** – RGB-Farben, Nachtlicht-Farbe pro Lampe, 5 Zeiträume,
+    Auto-Nachtriggern, Auto-Ausschalten.
+
+    </details>
+
+
+    Required = *
+  domain: automation
+
+  input:
+
+    # ═══════════════════════════════════════════════════════════════
+    trigger_settings:
+      name: "⚡ Trigger *"
+      icon: mdi:motion-sensor
+      collapsed: true
+      input:
+        motion_sensor:
+          name: Bewegungs- / Präsenzsensoren * (bis zu 5)
+          description: >
+            Einen oder mehrere Sensoren auswählen – es genügt wenn EINER aktiv ist.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: binary_sensor
+                - domain: group
+              multiple: true
+
+        time_delay:
+          name: Nachlaufzeit – Lux-Regelung & Konstant (Minuten)
+          default: 5
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 0.5
+              unit_of_measurement: Minuten
+
+        night_time_delay:
+          name: Nachlaufzeit – Nachtlicht (Minuten)
+          default: 2
+          selector:
+            number:
+              min: 0
+              max: 30
+              step: 0.5
+              unit_of_measurement: Minuten
+
+    # ═══════════════════════════════════════════════════════════════
+    lamp_1_settings:
+      name: "💡 Licht #1 * (Pflicht)"
+      icon: mdi:lightbulb
+      collapsed: true
+      input:
+
+        light_entity_1:
+          name: "Entität *"
+          description: Hauptlampe. Muss Helligkeitsregelung (brightness) unterstützen.
+          selector:
+            entity:
+              filter:
+                domain: light
+
+        light_transition:
+          name: Übergangszeit – Ein / Regeln (Sekunden)
+          default: 1
+          selector:
+            number:
+              min: 0
+              max: 5
+              step: 0.5
+              unit_of_measurement: Sekunden
+
+        light_transition_off:
+          name: Übergangszeit – Aus (Sekunden)
+          default: 2
+          selector:
+            number:
+              min: 0
+              max: 10
+              step: 0.5
+              unit_of_measurement: Sekunden
+
+        lamp1_use_color_temp:
+          name: "Hauptfarbe – Farbtemperatur aktivieren"
+          description: "Gilt für Lux-Regelung, Konstant und Zusatz-Trigger. Wird von RGB überschrieben."
+          default: false
+          selector:
+            boolean:
+
+        lamp1_color_temp_kelvin:
+          name: "Hauptfarbe – Farbtemperatur (Kelvin)"
+          description: "Warm = 2700 K  |  Neutral = 4000 K  |  Kalt = 6500 K"
+          default: 4000
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: K
+              mode: slider
+
+        lamp1_use_rgb:
+          name: "Hauptfarbe – RGB aktivieren"
+          description: "Gilt für Lux-Regelung, Konstant und Zusatz-Trigger. Überschreibt Farbtemperatur."
+          default: false
+          selector:
+            boolean:
+
+        lamp1_rgb_color:
+          name: "Hauptfarbe – RGB-Farbe"
+          default: [255, 255, 255]
+          selector:
+            color_rgb:
+
+        lamp1_night_use_color_temp:
+          name: "🌙 Nachtlicht – Farbtemperatur aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp1_night_color_temp_kelvin:
+          name: "🌙 Nachtlicht – Farbtemperatur (Kelvin)"
+          default: 2700
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: K
+              mode: slider
+
+        lamp1_night_use_rgb:
+          name: "🌙 Nachtlicht – RGB aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp1_night_rgb_color:
+          name: "🌙 Nachtlicht – RGB-Farbe"
+          default: [255, 80, 0]
+          selector:
+            color_rgb:
+
+        lamp1_constant_bri:
+          name: "Konstant-Modus – Helligkeit (%)"
+          default: 80
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+        night_light_bri_1:
+          name: "🌙 Nachtlicht – Helligkeit (%)"
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+        lamp1_night_disabled:
+          name: "🌙 Nachtlicht – Lampe deaktivieren"
+          default: false
+          selector:
+            boolean:
+
+        switch_trigger_bri_1:
+          name: "Zusatz-Trigger – Helligkeit (%)"
+          default: 100
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+    # ═══════════════════════════════════════════════════════════════
+    lamp_2_settings:
+      name: "💡 Licht #2 (Optional)"
+      icon: mdi:lightbulb-outline
+      collapsed: true
+      input:
+
+        light_entity_2:
+          name: "Entität"
+          default: []
+          selector:
+            entity:
+              filter:
+                domain: light
+
+        lamp2_use_color_temp:
+          name: "Hauptfarbe – Farbtemperatur aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp2_color_temp_kelvin:
+          name: "Hauptfarbe – Farbtemperatur (Kelvin)"
+          default: 4000
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: K
+              mode: slider
+
+        lamp2_use_rgb:
+          name: "Hauptfarbe – RGB aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp2_rgb_color:
+          name: "Hauptfarbe – RGB-Farbe"
+          default: [255, 255, 255]
+          selector:
+            color_rgb:
+
+        lamp2_night_use_color_temp:
+          name: "🌙 Nachtlicht – Farbtemperatur aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp2_night_color_temp_kelvin:
+          name: "🌙 Nachtlicht – Farbtemperatur (Kelvin)"
+          default: 2700
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: K
+              mode: slider
+
+        lamp2_night_use_rgb:
+          name: "🌙 Nachtlicht – RGB aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp2_night_rgb_color:
+          name: "🌙 Nachtlicht – RGB-Farbe"
+          default: [255, 80, 0]
+          selector:
+            color_rgb:
+
+        lamp2_constant_bri:
+          name: "Konstant-Modus – Helligkeit (%)"
+          default: 80
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+        night_light_bri_2:
+          name: "🌙 Nachtlicht – Helligkeit (%)"
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+        lamp2_night_disabled:
+          name: "🌙 Nachtlicht – Lampe deaktivieren"
+          default: false
+          selector:
+            boolean:
+
+        switch_trigger_bri_2:
+          name: "Zusatz-Trigger – Helligkeit (%)"
+          default: 100
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+    # ═══════════════════════════════════════════════════════════════
+    lamp_3_settings:
+      name: "💡 Licht #3 (Optional)"
+      icon: mdi:lightbulb-outline
+      collapsed: true
+      input:
+
+        light_entity_3:
+          name: "Entität"
+          default: []
+          selector:
+            entity:
+              filter:
+                domain: light
+
+        lamp3_use_color_temp:
+          name: "Hauptfarbe – Farbtemperatur aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp3_color_temp_kelvin:
+          name: "Hauptfarbe – Farbtemperatur (Kelvin)"
+          default: 4000
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: K
+              mode: slider
+
+        lamp3_use_rgb:
+          name: "Hauptfarbe – RGB aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp3_rgb_color:
+          name: "Hauptfarbe – RGB-Farbe"
+          default: [255, 255, 255]
+          selector:
+            color_rgb:
+
+        lamp3_night_use_color_temp:
+          name: "🌙 Nachtlicht – Farbtemperatur aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp3_night_color_temp_kelvin:
+          name: "🌙 Nachtlicht – Farbtemperatur (Kelvin)"
+          default: 2700
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: K
+              mode: slider
+
+        lamp3_night_use_rgb:
+          name: "🌙 Nachtlicht – RGB aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp3_night_rgb_color:
+          name: "🌙 Nachtlicht – RGB-Farbe"
+          default: [255, 80, 0]
+          selector:
+            color_rgb:
+
+        lamp3_constant_bri:
+          name: "Konstant-Modus – Helligkeit (%)"
+          default: 80
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+        night_light_bri_3:
+          name: "🌙 Nachtlicht – Helligkeit (%)"
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+        lamp3_night_disabled:
+          name: "🌙 Nachtlicht – Lampe deaktivieren"
+          default: false
+          selector:
+            boolean:
+
+        switch_trigger_bri_3:
+          name: "Zusatz-Trigger – Helligkeit (%)"
+          default: 100
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+    # ═══════════════════════════════════════════════════════════════
+    lamp_4_settings:
+      name: "💡 Licht #4 (Optional)"
+      icon: mdi:lightbulb-outline
+      collapsed: true
+      input:
+
+        light_entity_4:
+          name: "Entität"
+          default: []
+          selector:
+            entity:
+              filter:
+                domain: light
+
+        lamp4_use_color_temp:
+          name: "Hauptfarbe – Farbtemperatur aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp4_color_temp_kelvin:
+          name: "Hauptfarbe – Farbtemperatur (Kelvin)"
+          default: 4000
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: K
+              mode: slider
+
+        lamp4_use_rgb:
+          name: "Hauptfarbe – RGB aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp4_rgb_color:
+          name: "Hauptfarbe – RGB-Farbe"
+          default: [255, 255, 255]
+          selector:
+            color_rgb:
+
+        lamp4_night_use_color_temp:
+          name: "🌙 Nachtlicht – Farbtemperatur aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp4_night_color_temp_kelvin:
+          name: "🌙 Nachtlicht – Farbtemperatur (Kelvin)"
+          default: 2700
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: K
+              mode: slider
+
+        lamp4_night_use_rgb:
+          name: "🌙 Nachtlicht – RGB aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp4_night_rgb_color:
+          name: "🌙 Nachtlicht – RGB-Farbe"
+          default: [255, 80, 0]
+          selector:
+            color_rgb:
+
+        lamp4_constant_bri:
+          name: "Konstant-Modus – Helligkeit (%)"
+          default: 80
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+        night_light_bri_4:
+          name: "🌙 Nachtlicht – Helligkeit (%)"
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+        lamp4_night_disabled:
+          name: "🌙 Nachtlicht – Lampe deaktivieren"
+          default: false
+          selector:
+            boolean:
+
+        switch_trigger_bri_4:
+          name: "Zusatz-Trigger – Helligkeit (%)"
+          default: 100
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+    # ═══════════════════════════════════════════════════════════════
+    lamp_5_settings:
+      name: "💡 Licht #5 (Optional)"
+      icon: mdi:lightbulb-outline
+      collapsed: true
+      input:
+
+        light_entity_5:
+          name: "Entität"
+          default: []
+          selector:
+            entity:
+              filter:
+                domain: light
+
+        lamp5_use_color_temp:
+          name: "Hauptfarbe – Farbtemperatur aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp5_color_temp_kelvin:
+          name: "Hauptfarbe – Farbtemperatur (Kelvin)"
+          default: 4000
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: K
+              mode: slider
+
+        lamp5_use_rgb:
+          name: "Hauptfarbe – RGB aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp5_rgb_color:
+          name: "Hauptfarbe – RGB-Farbe"
+          default: [255, 255, 255]
+          selector:
+            color_rgb:
+
+        lamp5_night_use_color_temp:
+          name: "🌙 Nachtlicht – Farbtemperatur aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp5_night_color_temp_kelvin:
+          name: "🌙 Nachtlicht – Farbtemperatur (Kelvin)"
+          default: 2700
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: K
+              mode: slider
+
+        lamp5_night_use_rgb:
+          name: "🌙 Nachtlicht – RGB aktivieren"
+          default: false
+          selector:
+            boolean:
+
+        lamp5_night_rgb_color:
+          name: "🌙 Nachtlicht – RGB-Farbe"
+          default: [255, 80, 0]
+          selector:
+            color_rgb:
+
+        lamp5_constant_bri:
+          name: "Konstant-Modus – Helligkeit (%)"
+          default: 80
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+        night_light_bri_5:
+          name: "🌙 Nachtlicht – Helligkeit (%)"
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+        lamp5_night_disabled:
+          name: "🌙 Nachtlicht – Lampe deaktivieren"
+          default: false
+          selector:
+            boolean:
+
+        switch_trigger_bri_5:
+          name: "Zusatz-Trigger – Helligkeit (%)"
+          default: 100
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+    # ═══════════════════════════════════════════════════════════════
+    lux_settings:
+      name: "🔆 Lux-Regelung"
+      icon: mdi:brightness-6
+      collapsed: true
+      input:
+        lux_sensor:
+          name: Lux-Sensor *
+          selector:
+            entity:
+              filter:
+                domain: sensor
+                device_class: illuminance
+
+        target_lux:
+          name: Ziel-Helligkeit (Soll-Lux)
+          default: 120
+          selector:
+            number:
+              min: 10
+              max: 1000
+              step: 5
+              unit_of_measurement: lux
+
+        activation_lux_threshold:
+          name: Aktivierungsschwelle (max. Lux zum Einschalten)
+          default: 120
+          selector:
+            number:
+              min: 10
+              max: 1000
+              step: 5
+              unit_of_measurement: lux
+
+        lux_hysteresis:
+          name: Hysterese – Totband (± Lux)
+          default: 10
+          selector:
+            number:
+              min: 2
+              max: 50
+              step: 1
+              unit_of_measurement: lux
+
+        adjustment_step:
+          name: Regelschritt (%)
+          default: 3
+          selector:
+            number:
+              min: 1
+              max: 20
+              step: 1
+              unit_of_measurement: '%'
+
+        adjustment_interval:
+          name: Regelintervall (Sekunden)
+          default: 30
+          selector:
+            number:
+              min: 5
+              max: 300
+              step: 5
+              unit_of_measurement: Sekunden
+
+        lux_retrigger_threshold:
+          name: "Auto-Nachtriggern – Schwellwert (Lux)"
+          description: >
+            0 = deaktiviert. Empfehlung: gleicher Wert wie Aktivierungsschwelle.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 5
+              unit_of_measurement: lux
+
+        lux_retrigger_delay:
+          name: "Auto-Nachtriggern – Wartezeit (Sekunden)"
+          default: 60
+          selector:
+            number:
+              min: 10
+              max: 600
+              step: 5
+              unit_of_measurement: Sekunden
+
+        auto_off_brightness:
+          name: "Auto-Ausschalten – Helligkeitsschwelle (%)"
+          description: "0 = deaktiviert."
+          default: 3
+          selector:
+            number:
+              min: 0
+              max: 20
+              step: 1
+              unit_of_measurement: '%'
+
+    # ═══════════════════════════════════════════════════════════════
+    light_curve_lux_settings:
+      name: "📈 Lichtkurve – Lux-Messpunkte (X-Achse)"
+      icon: mdi:chart-bell-curve
+      collapsed: true
+      input:
+        curve_lux_1:
+          name: "Punkt 1 – Umgebungslux"
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 500
+              step: 5
+              unit_of_measurement: lux
+        curve_lux_2:
+          name: "Punkt 2 – Umgebungslux"
+          default: 30
+          selector:
+            number:
+              min: 0
+              max: 500
+              step: 5
+              unit_of_measurement: lux
+        curve_lux_3:
+          name: "Punkt 3 – Umgebungslux"
+          default: 60
+          selector:
+            number:
+              min: 0
+              max: 500
+              step: 5
+              unit_of_measurement: lux
+        curve_lux_4:
+          name: "Punkt 4 – Umgebungslux"
+          default: 90
+          selector:
+            number:
+              min: 0
+              max: 500
+              step: 5
+              unit_of_measurement: lux
+        curve_lux_5:
+          name: "Punkt 5 – Umgebungslux"
+          default: 110
+          selector:
+            number:
+              min: 0
+              max: 500
+              step: 5
+              unit_of_measurement: lux
+
+    # ═══════════════════════════════════════════════════════════════
+    light_curve_brightness_settings:
+      name: "📈 Lichtkurve – Helligkeiten pro Lampe (Y-Achse)"
+      icon: mdi:chart-line-variant
+      collapsed: true
+      input:
+        curve_bri_1_1:
+          name: "Punkt 1 – Lampe 1 (%)"
+          default: 100
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_1_2:
+          name: "Punkt 1 – Lampe 2 (%)"
+          default: 80
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_1_3:
+          name: "Punkt 1 – Lampe 3 (%)"
+          default: 60
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_1_4:
+          name: "Punkt 1 – Lampe 4 (%)"
+          default: 60
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_1_5:
+          name: "Punkt 1 – Lampe 5 (%)"
+          default: 60
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_2_1:
+          name: "Punkt 2 – Lampe 1 (%)"
+          default: 65
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_2_2:
+          name: "Punkt 2 – Lampe 2 (%)"
+          default: 50
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_2_3:
+          name: "Punkt 2 – Lampe 3 (%)"
+          default: 40
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_2_4:
+          name: "Punkt 2 – Lampe 4 (%)"
+          default: 40
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_2_5:
+          name: "Punkt 2 – Lampe 5 (%)"
+          default: 40
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_3_1:
+          name: "Punkt 3 – Lampe 1 (%)"
+          default: 35
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_3_2:
+          name: "Punkt 3 – Lampe 2 (%)"
+          default: 28
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_3_3:
+          name: "Punkt 3 – Lampe 3 (%)"
+          default: 20
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_3_4:
+          name: "Punkt 3 – Lampe 4 (%)"
+          default: 20
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_3_5:
+          name: "Punkt 3 – Lampe 5 (%)"
+          default: 20
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_4_1:
+          name: "Punkt 4 – Lampe 1 (%)"
+          default: 15
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_4_2:
+          name: "Punkt 4 – Lampe 2 (%)"
+          default: 12
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_4_3:
+          name: "Punkt 4 – Lampe 3 (%)"
+          default: 8
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_4_4:
+          name: "Punkt 4 – Lampe 4 (%)"
+          default: 8
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_4_5:
+          name: "Punkt 4 – Lampe 5 (%)"
+          default: 8
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_5_1:
+          name: "Punkt 5 – Lampe 1 (%)"
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_5_2:
+          name: "Punkt 5 – Lampe 2 (%)"
+          default: 4
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_5_3:
+          name: "Punkt 5 – Lampe 3 (%)"
+          default: 3
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_5_4:
+          name: "Punkt 5 – Lampe 4 (%)"
+          default: 3
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+        curve_bri_5_5:
+          name: "Punkt 5 – Lampe 5 (%)"
+          default: 3
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
+
+    # ═══════════════════════════════════════════════════════════════
+    time_periods_settings:
+      name: "🕐 Zeiträume & Betriebsmodi"
+      icon: mdi:clock-time-four-outline
+      collapsed: true
+      input:
+        period_1_mode:
+          name: "Zeitraum 1 – Modus (ab 00:00 / Standardmodus)"
+          default: "night_light"
+          selector:
+            select:
+              options:
+                - label: "🔆 Lux-Regelung"
+                  value: "lux"
+                - label: "💡 Konstante Helligkeit"
+                  value: "constant"
+                - label: "🌙 Nachtlicht"
+                  value: "night_light"
+                - label: "⛔ Aus – nicht einschalten"
+                  value: "off"
+
+        period_2_enabled:
+          name: "Zeitraum 2 aktivieren"
+          default: false
+          selector:
+            boolean:
+        period_2_start:
+          name: "Zeitraum 2 – Startzeit"
+          default: "06:00:00"
+          selector:
+            time:
+        period_2_mode:
+          name: "Zeitraum 2 – Modus"
+          default: "lux"
+          selector:
+            select:
+              options:
+                - label: "🔆 Lux-Regelung"
+                  value: "lux"
+                - label: "💡 Konstante Helligkeit"
+                  value: "constant"
+                - label: "🌙 Nachtlicht"
+                  value: "night_light"
+                - label: "⛔ Aus – nicht einschalten"
+                  value: "off"
+
+        period_3_enabled:
+          name: "Zeitraum 3 aktivieren"
+          default: false
+          selector:
+            boolean:
+        period_3_start:
+          name: "Zeitraum 3 – Startzeit"
+          default: "13:00:00"
+          selector:
+            time:
+        period_3_mode:
+          name: "Zeitraum 3 – Modus"
+          default: "constant"
+          selector:
+            select:
+              options:
+                - label: "🔆 Lux-Regelung"
+                  value: "lux"
+                - label: "💡 Konstante Helligkeit"
+                  value: "constant"
+                - label: "🌙 Nachtlicht"
+                  value: "night_light"
+                - label: "⛔ Aus – nicht einschalten"
+                  value: "off"
+
+        period_4_enabled:
+          name: "Zeitraum 4 aktivieren"
+          default: false
+          selector:
+            boolean:
+        period_4_start:
+          name: "Zeitraum 4 – Startzeit"
+          default: "18:00:00"
+          selector:
+            time:
+        period_4_mode:
+          name: "Zeitraum 4 – Modus"
+          default: "lux"
+          selector:
+            select:
+              options:
+                - label: "🔆 Lux-Regelung"
+                  value: "lux"
+                - label: "💡 Konstante Helligkeit"
+                  value: "constant"
+                - label: "🌙 Nachtlicht"
+                  value: "night_light"
+                - label: "⛔ Aus – nicht einschalten"
+                  value: "off"
+
+        period_5_enabled:
+          name: "Zeitraum 5 aktivieren"
+          default: false
+          selector:
+            boolean:
+        period_5_start:
+          name: "Zeitraum 5 – Startzeit"
+          default: "22:00:00"
+          selector:
+            time:
+        period_5_mode:
+          name: "Zeitraum 5 – Modus"
+          default: "night_light"
+          selector:
+            select:
+              options:
+                - label: "🔆 Lux-Regelung"
+                  value: "lux"
+                - label: "💡 Konstante Helligkeit"
+                  value: "constant"
+                - label: "🌙 Nachtlicht"
+                  value: "night_light"
+                - label: "⛔ Aus – nicht einschalten"
+                  value: "off"
+
+    # ═══════════════════════════════════════════════════════════════
+    night_light_settings:
+      name: "🌙 Nachtlicht"
+      icon: mdi:weather-night
+      collapsed: true
+      input:
+        include_night_light:
+          name: "Nachtlicht-Funktion"
+          default: "night_light_enabled"
+          selector:
+            select:
+              options:
+                - label: "Nachtlicht aktivieren"
+                  value: "night_light_enabled"
+                - label: "Nachtlicht deaktivieren"
+                  value: "night_light_disabled"
+
+    # ═══════════════════════════════════════════════════════════════
+    switch_trigger_settings:
+      name: "🔀 Zusatz-Trigger – Schalter (Optional)"
+      icon: mdi:toggle-switch
+      collapsed: true
+      input:
+        include_switch_trigger:
+          name: Zusatz-Trigger aktivieren
+          default: "switch_disabled"
+          selector:
+            select:
+              options:
+                - label: Zusatz-Trigger aktivieren
+                  value: "switch_enabled"
+                - label: Zusatz-Trigger deaktivieren
+                  value: "switch_disabled"
+
+        switch_trigger_entity:
+          name: Zusatz-Trigger – Schalter-Entität
+          default: []
+          selector:
+            entity:
+
+        switch_off_mode:
+          name: Zusatz-Trigger – Ausschalten durch
+          default: "by_presence"
+          selector:
+            select:
+              options:
+                - label: Ausschalten durch Präsenzmelder (+ Nachlauf)
+                  value: "by_presence"
+                - label: Ausschalten durch Schalter (OFF)
+                  value: "by_switch"
+                - label: Ausschalten durch Beides – erstes was eintrifft
+                  value: "by_both"
+
+    # ═══════════════════════════════════════════════════════════════
+    bypass_settings:
+      name: "🔓 Bypass (Optional)"
+      icon: mdi:toggle-switch-outline
+      collapsed: true
+      input:
+        bypass_switch:
+          name: Bypass – Schalter (Optional)
+          default: []
+          selector:
+            entity:
+              filter:
+                domain: input_boolean
+
+# ═══════════════════════════════════════════════════════════════════════════════
+mode: restart
+max_exceeded: silent
+
+variables:
+  motion_sensor: !input motion_sensor
+  time_delay: !input time_delay
+  night_time_delay: !input night_time_delay
+  light_transition: !input light_transition
+  light_transition_off: !input light_transition_off
+  light_entity_1: !input light_entity_1
+  light_entity_2: !input light_entity_2
+  light_entity_3: !input light_entity_3
+  light_entity_4: !input light_entity_4
+  light_entity_5: !input light_entity_5
+  lamp1_use_color_temp: !input lamp1_use_color_temp
+  lamp1_color_temp_kelvin: !input lamp1_color_temp_kelvin
+  lamp1_use_rgb: !input lamp1_use_rgb
+  lamp1_rgb_color: !input lamp1_rgb_color
+  lamp2_use_color_temp: !input lamp2_use_color_temp
+  lamp2_color_temp_kelvin: !input lamp2_color_temp_kelvin
+  lamp2_use_rgb: !input lamp2_use_rgb
+  lamp2_rgb_color: !input lamp2_rgb_color
+  lamp3_use_color_temp: !input lamp3_use_color_temp
+  lamp3_color_temp_kelvin: !input lamp3_color_temp_kelvin
+  lamp3_use_rgb: !input lamp3_use_rgb
+  lamp3_rgb_color: !input lamp3_rgb_color
+  lamp4_use_color_temp: !input lamp4_use_color_temp
+  lamp4_color_temp_kelvin: !input lamp4_color_temp_kelvin
+  lamp4_use_rgb: !input lamp4_use_rgb
+  lamp4_rgb_color: !input lamp4_rgb_color
+  lamp5_use_color_temp: !input lamp5_use_color_temp
+  lamp5_color_temp_kelvin: !input lamp5_color_temp_kelvin
+  lamp5_use_rgb: !input lamp5_use_rgb
+  lamp5_rgb_color: !input lamp5_rgb_color
+  lamp1_night_use_color_temp: !input lamp1_night_use_color_temp
+  lamp1_night_color_temp_kelvin: !input lamp1_night_color_temp_kelvin
+  lamp1_night_use_rgb: !input lamp1_night_use_rgb
+  lamp1_night_rgb_color: !input lamp1_night_rgb_color
+  lamp2_night_use_color_temp: !input lamp2_night_use_color_temp
+  lamp2_night_color_temp_kelvin: !input lamp2_night_color_temp_kelvin
+  lamp2_night_use_rgb: !input lamp2_night_use_rgb
+  lamp2_night_rgb_color: !input lamp2_night_rgb_color
+  lamp3_night_use_color_temp: !input lamp3_night_use_color_temp
+  lamp3_night_color_temp_kelvin: !input lamp3_night_color_temp_kelvin
+  lamp3_night_use_rgb: !input lamp3_night_use_rgb
+  lamp3_night_rgb_color: !input lamp3_night_rgb_color
+  lamp4_night_use_color_temp: !input lamp4_night_use_color_temp
+  lamp4_night_color_temp_kelvin: !input lamp4_night_color_temp_kelvin
+  lamp4_night_use_rgb: !input lamp4_night_use_rgb
+  lamp4_night_rgb_color: !input lamp4_night_rgb_color
+  lamp5_night_use_color_temp: !input lamp5_night_use_color_temp
+  lamp5_night_color_temp_kelvin: !input lamp5_night_color_temp_kelvin
+  lamp5_night_use_rgb: !input lamp5_night_use_rgb
+  lamp5_night_rgb_color: !input lamp5_night_rgb_color
+  lamp1_night_disabled: !input lamp1_night_disabled
+  lamp2_night_disabled: !input lamp2_night_disabled
+  lamp3_night_disabled: !input lamp3_night_disabled
+  lamp4_night_disabled: !input lamp4_night_disabled
+  lamp5_night_disabled: !input lamp5_night_disabled
+  lamp1_constant_bri: !input lamp1_constant_bri
+  lamp2_constant_bri: !input lamp2_constant_bri
+  lamp3_constant_bri: !input lamp3_constant_bri
+  lamp4_constant_bri: !input lamp4_constant_bri
+  lamp5_constant_bri: !input lamp5_constant_bri
+  night_light_bri_1: !input night_light_bri_1
+  night_light_bri_2: !input night_light_bri_2
+  night_light_bri_3: !input night_light_bri_3
+  night_light_bri_4: !input night_light_bri_4
+  night_light_bri_5: !input night_light_bri_5
+  switch_trigger_bri_1: !input switch_trigger_bri_1
+  switch_trigger_bri_2: !input switch_trigger_bri_2
+  switch_trigger_bri_3: !input switch_trigger_bri_3
+  switch_trigger_bri_4: !input switch_trigger_bri_4
+  switch_trigger_bri_5: !input switch_trigger_bri_5
+  lux_sensor: !input lux_sensor
+  target_lux: !input target_lux
+  lux_hysteresis: !input lux_hysteresis
+  activation_lux_threshold: !input activation_lux_threshold
+  adjustment_step: !input adjustment_step
+  adjustment_interval: !input adjustment_interval
+  lux_retrigger_threshold: !input lux_retrigger_threshold
+  lux_retrigger_delay: !input lux_retrigger_delay
+  auto_off_brightness: !input auto_off_brightness
+  curve_lux_1: !input curve_lux_1
+  curve_lux_2: !input curve_lux_2
+  curve_lux_3: !input curve_lux_3
+  curve_lux_4: !input curve_lux_4
+  curve_lux_5: !input curve_lux_5
+  curve_bri_1_1: !input curve_bri_1_1
+  curve_bri_2_1: !input curve_bri_2_1
+  curve_bri_3_1: !input curve_bri_3_1
+  curve_bri_4_1: !input curve_bri_4_1
+  curve_bri_5_1: !input curve_bri_5_1
+  curve_bri_1_2: !input curve_bri_1_2
+  curve_bri_2_2: !input curve_bri_2_2
+  curve_bri_3_2: !input curve_bri_3_2
+  curve_bri_4_2: !input curve_bri_4_2
+  curve_bri_5_2: !input curve_bri_5_2
+  curve_bri_1_3: !input curve_bri_1_3
+  curve_bri_2_3: !input curve_bri_2_3
+  curve_bri_3_3: !input curve_bri_3_3
+  curve_bri_4_3: !input curve_bri_4_3
+  curve_bri_5_3: !input curve_bri_5_3
+  curve_bri_1_4: !input curve_bri_1_4
+  curve_bri_2_4: !input curve_bri_2_4
+  curve_bri_3_4: !input curve_bri_3_4
+  curve_bri_4_4: !input curve_bri_4_4
+  curve_bri_5_4: !input curve_bri_5_4
+  curve_bri_1_5: !input curve_bri_1_5
+  curve_bri_2_5: !input curve_bri_2_5
+  curve_bri_3_5: !input curve_bri_3_5
+  curve_bri_4_5: !input curve_bri_4_5
+  curve_bri_5_5: !input curve_bri_5_5
+  period_1_mode: !input period_1_mode
+  period_2_enabled: !input period_2_enabled
+  period_2_start: !input period_2_start
+  period_2_mode: !input period_2_mode
+  period_3_enabled: !input period_3_enabled
+  period_3_start: !input period_3_start
+  period_3_mode: !input period_3_mode
+  period_4_enabled: !input period_4_enabled
+  period_4_start: !input period_4_start
+  period_4_mode: !input period_4_mode
+  period_5_enabled: !input period_5_enabled
+  period_5_start: !input period_5_start
+  period_5_mode: !input period_5_mode
+  include_night_light: !input include_night_light
+  include_switch_trigger: !input include_switch_trigger
+  switch_trigger_entity: !input switch_trigger_entity
+  switch_off_mode: !input switch_off_mode
+  bypass_switch: !input bypass_switch
+
+  active_mode: >-
+    {% set ns = namespace(result=period_1_mode) %}
+    {% set t = now().strftime('%H:%M:%S') %}
+    {% if period_2_enabled and t >= period_2_start %}{% set ns.result = period_2_mode %}{% endif %}
+    {% if period_3_enabled and t >= period_3_start %}{% set ns.result = period_3_mode %}{% endif %}
+    {% if period_4_enabled and t >= period_4_start %}{% set ns.result = period_4_mode %}{% endif %}
+    {% if period_5_enabled and t >= period_5_start %}{% set ns.result = period_5_mode %}{% endif %}
+    {{ ns.result }}
+
+  effective_mode: >-
+    {% if active_mode == 'night_light' and include_night_light == 'night_light_disabled' %}
+      off
+    {% else %}
+      {{ active_mode }}
+    {% endif %}
+
+  lamp2_active: "{{ light_entity_2 | length > 0 }}"
+  lamp3_active: "{{ light_entity_3 | length > 0 }}"
+  lamp4_active: "{{ light_entity_4 | length > 0 }}"
+  lamp5_active: "{{ light_entity_5 | length > 0 }}"
+
+  curve_brightness_l1: >-
+    {% set lux_pts = [curve_lux_1|float, curve_lux_2|float, curve_lux_3|float,
+                      curve_lux_4|float, curve_lux_5|float] %}
+    {% set bri_pts = [curve_bri_1_1|float, curve_bri_2_1|float, curve_bri_3_1|float,
+                      curve_bri_4_1|float, curve_bri_5_1|float] %}
+    {% set ambient = states(lux_sensor) | float(0) %}
+    {% set ns = namespace(bri=bri_pts[0]) %}
+    {% if ambient <= lux_pts[0] %}{% set ns.bri = bri_pts[0] %}
+    {% elif ambient >= lux_pts[4] %}{% set ns.bri = bri_pts[4] %}
+    {% else %}{% for i in range(4) %}{% if ambient >= lux_pts[i] and ambient < lux_pts[i+1] %}
+      {% set t = (ambient - lux_pts[i]) / (lux_pts[i+1] - lux_pts[i]) %}
+      {% set ns.bri = bri_pts[i] + t * (bri_pts[i+1] - bri_pts[i]) %}
+    {% endif %}{% endfor %}{% endif %}
+    {{ [1, [100, ns.bri | round(0) | int] | min] | max }}
+
+  curve_brightness_l2: >-
+    {% set lux_pts = [curve_lux_1|float, curve_lux_2|float, curve_lux_3|float,
+                      curve_lux_4|float, curve_lux_5|float] %}
+    {% set bri_pts = [curve_bri_1_2|float, curve_bri_2_2|float, curve_bri_3_2|float,
+                      curve_bri_4_2|float, curve_bri_5_2|float] %}
+    {% set ambient = states(lux_sensor) | float(0) %}
+    {% set ns = namespace(bri=bri_pts[0]) %}
+    {% if ambient <= lux_pts[0] %}{% set ns.bri = bri_pts[0] %}
+    {% elif ambient >= lux_pts[4] %}{% set ns.bri = bri_pts[4] %}
+    {% else %}{% for i in range(4) %}{% if ambient >= lux_pts[i] and ambient < lux_pts[i+1] %}
+      {% set t = (ambient - lux_pts[i]) / (lux_pts[i+1] - lux_pts[i]) %}
+      {% set ns.bri = bri_pts[i] + t * (bri_pts[i+1] - bri_pts[i]) %}
+    {% endif %}{% endfor %}{% endif %}
+    {{ [1, [100, ns.bri | round(0) | int] | min] | max }}
+
+  curve_brightness_l3: >-
+    {% set lux_pts = [curve_lux_1|float, curve_lux_2|float, curve_lux_3|float,
+                      curve_lux_4|float, curve_lux_5|float] %}
+    {% set bri_pts = [curve_bri_1_3|float, curve_bri_2_3|float, curve_bri_3_3|float,
+                      curve_bri_4_3|float, curve_bri_5_3|float] %}
+    {% set ambient = states(lux_sensor) | float(0) %}
+    {% set ns = namespace(bri=bri_pts[0]) %}
+    {% if ambient <= lux_pts[0] %}{% set ns.bri = bri_pts[0] %}
+    {% elif ambient >= lux_pts[4] %}{% set ns.bri = bri_pts[4] %}
+    {% else %}{% for i in range(4) %}{% if ambient >= lux_pts[i] and ambient < lux_pts[i+1] %}
+      {% set t = (ambient - lux_pts[i]) / (lux_pts[i+1] - lux_pts[i]) %}
+      {% set ns.bri = bri_pts[i] + t * (bri_pts[i+1] - bri_pts[i]) %}
+    {% endif %}{% endfor %}{% endif %}
+    {{ [1, [100, ns.bri | round(0) | int] | min] | max }}
+
+  curve_brightness_l4: >-
+    {% set lux_pts = [curve_lux_1|float, curve_lux_2|float, curve_lux_3|float,
+                      curve_lux_4|float, curve_lux_5|float] %}
+    {% set bri_pts = [curve_bri_1_4|float, curve_bri_2_4|float, curve_bri_3_4|float,
+                      curve_bri_4_4|float, curve_bri_5_4|float] %}
+    {% set ambient = states(lux_sensor) | float(0) %}
+    {% set ns = namespace(bri=bri_pts[0]) %}
+    {% if ambient <= lux_pts[0] %}{% set ns.bri = bri_pts[0] %}
+    {% elif ambient >= lux_pts[4] %}{% set ns.bri = bri_pts[4] %}
+    {% else %}{% for i in range(4) %}{% if ambient >= lux_pts[i] and ambient < lux_pts[i+1] %}
+      {% set t = (ambient - lux_pts[i]) / (lux_pts[i+1] - lux_pts[i]) %}
+      {% set ns.bri = bri_pts[i] + t * (bri_pts[i+1] - bri_pts[i]) %}
+    {% endif %}{% endfor %}{% endif %}
+    {{ [1, [100, ns.bri | round(0) | int] | min] | max }}
+
+  curve_brightness_l5: >-
+    {% set lux_pts = [curve_lux_1|float, curve_lux_2|float, curve_lux_3|float,
+                      curve_lux_4|float, curve_lux_5|float] %}
+    {% set bri_pts = [curve_bri_1_5|float, curve_bri_2_5|float, curve_bri_3_5|float,
+                      curve_bri_4_5|float, curve_bri_5_5|float] %}
+    {% set ambient = states(lux_sensor) | float(0) %}
+    {% set ns = namespace(bri=bri_pts[0]) %}
+    {% if ambient <= lux_pts[0] %}{% set ns.bri = bri_pts[0] %}
+    {% elif ambient >= lux_pts[4] %}{% set ns.bri = bri_pts[4] %}
+    {% else %}{% for i in range(4) %}{% if ambient >= lux_pts[i] and ambient < lux_pts[i+1] %}
+      {% set t = (ambient - lux_pts[i]) / (lux_pts[i+1] - lux_pts[i]) %}
+      {% set ns.bri = bri_pts[i] + t * (bri_pts[i+1] - bri_pts[i]) %}
+    {% endif %}{% endfor %}{% endif %}
+    {{ [1, [100, ns.bri | round(0) | int] | min] | max }}
+
+  init_bri_1: >-
+    {{ state_attr(light_entity_1, 'brightness') | float(128) / 2.55 | round | int
+       if is_state(light_entity_1, 'on') else curve_brightness_l1 | int }}
+  init_bri_2: >-
+    {{ state_attr(light_entity_2, 'brightness') | float(128) / 2.55 | round | int
+       if lamp2_active and is_state(light_entity_2, 'on') else curve_brightness_l2 | int }}
+  init_bri_3: >-
+    {{ state_attr(light_entity_3, 'brightness') | float(128) / 2.55 | round | int
+       if lamp3_active and is_state(light_entity_3, 'on') else curve_brightness_l3 | int }}
+  init_bri_4: >-
+    {{ state_attr(light_entity_4, 'brightness') | float(128) / 2.55 | round | int
+       if lamp4_active and is_state(light_entity_4, 'on') else curve_brightness_l4 | int }}
+  init_bri_5: >-
+    {{ state_attr(light_entity_5, 'brightness') | float(128) / 2.55 | round | int
+       if lamp5_active and is_state(light_entity_5, 'on') else curve_brightness_l5 | int }}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+trigger:
+  - trigger: state
+    entity_id: !input motion_sensor
+    to: "on"
+    id: "motion"
+  - trigger: state
+    entity_id: !input switch_trigger_entity
+    to: "on"
+    id: "switch"
+  - trigger: numeric_state
+    entity_id: !input lux_sensor
+    below: !input lux_retrigger_threshold
+    for:
+      seconds: !input lux_retrigger_delay
+    id: "lux_drop"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+action:
+  - choose:
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Branch 1: ZUSATZ-TRIGGER
+    # ──────────────────────────────────────────────────────────────────────────
+    - conditions:
+        - condition: trigger
+          id: "switch"
+        - "{{ include_switch_trigger == 'switch_enabled' }}"
+      sequence:
+        - action: light.turn_on
+          target:
+            entity_id: "{{ light_entity_1 }}"
+          data:
+            brightness_pct: "{{ switch_trigger_bri_1 | int }}"
+            transition: "{{ light_transition | float }}"
+        - choose:
+            - conditions: ["{{ lamp1_use_rgb }}"]
+              sequence:
+                - action: light.turn_on
+                  target:
+                    entity_id: "{{ light_entity_1 }}"
+                  data:
+                    rgb_color: "{{ lamp1_rgb_color }}"
+            - conditions: ["{{ lamp1_use_color_temp }}"]
+              sequence:
+                - action: light.turn_on
+                  target:
+                    entity_id: "{{ light_entity_1 }}"
+                  data:
+                    color_temp_kelvin: "{{ lamp1_color_temp_kelvin | int }}"
+        - if:
+            - "{{ lamp2_active }}"
+          then:
+            - action: light.turn_on
+              target:
+                entity_id: "{{ light_entity_2 }}"
+              data:
+                brightness_pct: "{{ switch_trigger_bri_2 | int }}"
+                transition: "{{ light_transition | float }}"
+            - choose:
+                - conditions: ["{{ lamp2_use_rgb }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_2 }}"
+                      data:
+                        rgb_color: "{{ lamp2_rgb_color }}"
+                - conditions: ["{{ lamp2_use_color_temp }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_2 }}"
+                      data:
+                        color_temp_kelvin: "{{ lamp2_color_temp_kelvin | int }}"
+        - if:
+            - "{{ lamp3_active }}"
+          then:
+            - action: light.turn_on
+              target:
+                entity_id: "{{ light_entity_3 }}"
+              data:
+                brightness_pct: "{{ switch_trigger_bri_3 | int }}"
+                transition: "{{ light_transition | float }}"
+            - choose:
+                - conditions: ["{{ lamp3_use_rgb }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_3 }}"
+                      data:
+                        rgb_color: "{{ lamp3_rgb_color }}"
+                - conditions: ["{{ lamp3_use_color_temp }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_3 }}"
+                      data:
+                        color_temp_kelvin: "{{ lamp3_color_temp_kelvin | int }}"
+        - if:
+            - "{{ lamp4_active }}"
+          then:
+            - action: light.turn_on
+              target:
+                entity_id: "{{ light_entity_4 }}"
+              data:
+                brightness_pct: "{{ switch_trigger_bri_4 | int }}"
+                transition: "{{ light_transition | float }}"
+            - choose:
+                - conditions: ["{{ lamp4_use_rgb }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_4 }}"
+                      data:
+                        rgb_color: "{{ lamp4_rgb_color }}"
+                - conditions: ["{{ lamp4_use_color_temp }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_4 }}"
+                      data:
+                        color_temp_kelvin: "{{ lamp4_color_temp_kelvin | int }}"
+        - if:
+            - "{{ lamp5_active }}"
+          then:
+            - action: light.turn_on
+              target:
+                entity_id: "{{ light_entity_5 }}"
+              data:
+                brightness_pct: "{{ switch_trigger_bri_5 | int }}"
+                transition: "{{ light_transition | float }}"
+            - choose:
+                - conditions: ["{{ lamp5_use_rgb }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_5 }}"
+                      data:
+                        rgb_color: "{{ lamp5_rgb_color }}"
+                - conditions: ["{{ lamp5_use_color_temp }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_5 }}"
+                      data:
+                        color_temp_kelvin: "{{ lamp5_color_temp_kelvin | int }}"
+
+        - choose:
+            - conditions: ["{{ switch_off_mode == 'by_switch' }}"]
+              sequence:
+                - wait_for_trigger:
+                    - trigger: state
+                      entity_id: !input switch_trigger_entity
+                      to: "off"
+                  continue_on_timeout: true
+                  timeout:
+                    hours: 4
+            - conditions: ["{{ switch_off_mode == 'by_presence' }}"]
+              sequence:
+                - repeat:
+                    while:
+                      - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
+                    sequence:
+                      - delay:
+                          seconds: 10
+                - delay:
+                    minutes: "{{ time_delay | float }}"
+          default:
+            - repeat:
+                while:
+                  - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0
+                         and is_state(switch_trigger_entity, 'on') }}"
+                sequence:
+                  - delay:
+                      seconds: 10
+            - if:
+                - "{{ is_state(switch_trigger_entity, 'on') }}"
+              then:
+                - delay:
+                    minutes: "{{ time_delay | float }}"
+
+        - action: light.turn_off
+          target:
+            entity_id: "{{ light_entity_1 }}"
+          data:
+            transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp2_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_2 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp3_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_3 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp4_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_4 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp5_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_5 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Branch 2: NACHTLICHT
+    # ──────────────────────────────────────────────────────────────────────────
+    - conditions:
+        - condition: trigger
+          id: "motion"
+        - "{{ effective_mode == 'night_light' }}"
+      sequence:
+        - action: light.turn_off
+          target:
+            entity_id: "{{ light_entity_1 }}"
+          data:
+            transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp2_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_2 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp3_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_3 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp4_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_4 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp5_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_5 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+        - delay:
+            milliseconds: 500
+
+        - if:
+            - "{{ not lamp1_night_disabled }}"
+          then:
+            - action: light.turn_on
+              target:
+                entity_id: "{{ light_entity_1 }}"
+              data:
+                brightness_pct: "{{ night_light_bri_1 | int }}"
+                transition: "{{ light_transition | float }}"
+            - choose:
+                - conditions: ["{{ lamp1_night_use_rgb }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_1 }}"
+                      data:
+                        rgb_color: "{{ lamp1_night_rgb_color }}"
+                - conditions: ["{{ lamp1_night_use_color_temp }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_1 }}"
+                      data:
+                        color_temp_kelvin: "{{ lamp1_night_color_temp_kelvin | int }}"
+        - if:
+            - "{{ lamp2_active and not lamp2_night_disabled }}"
+          then:
+            - action: light.turn_on
+              target:
+                entity_id: "{{ light_entity_2 }}"
+              data:
+                brightness_pct: "{{ night_light_bri_2 | int }}"
+                transition: "{{ light_transition | float }}"
+            - choose:
+                - conditions: ["{{ lamp2_night_use_rgb }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_2 }}"
+                      data:
+                        rgb_color: "{{ lamp2_night_rgb_color }}"
+                - conditions: ["{{ lamp2_night_use_color_temp }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_2 }}"
+                      data:
+                        color_temp_kelvin: "{{ lamp2_night_color_temp_kelvin | int }}"
+        - if:
+            - "{{ lamp3_active and not lamp3_night_disabled }}"
+          then:
+            - action: light.turn_on
+              target:
+                entity_id: "{{ light_entity_3 }}"
+              data:
+                brightness_pct: "{{ night_light_bri_3 | int }}"
+                transition: "{{ light_transition | float }}"
+            - choose:
+                - conditions: ["{{ lamp3_night_use_rgb }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_3 }}"
+                      data:
+                        rgb_color: "{{ lamp3_night_rgb_color }}"
+                - conditions: ["{{ lamp3_night_use_color_temp }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_3 }}"
+                      data:
+                        color_temp_kelvin: "{{ lamp3_night_color_temp_kelvin | int }}"
+        - if:
+            - "{{ lamp4_active and not lamp4_night_disabled }}"
+          then:
+            - action: light.turn_on
+              target:
+                entity_id: "{{ light_entity_4 }}"
+              data:
+                brightness_pct: "{{ night_light_bri_4 | int }}"
+                transition: "{{ light_transition | float }}"
+            - choose:
+                - conditions: ["{{ lamp4_night_use_rgb }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_4 }}"
+                      data:
+                        rgb_color: "{{ lamp4_night_rgb_color }}"
+                - conditions: ["{{ lamp4_night_use_color_temp }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_4 }}"
+                      data:
+                        color_temp_kelvin: "{{ lamp4_night_color_temp_kelvin | int }}"
+        - if:
+            - "{{ lamp5_active and not lamp5_night_disabled }}"
+          then:
+            - action: light.turn_on
+              target:
+                entity_id: "{{ light_entity_5 }}"
+              data:
+                brightness_pct: "{{ night_light_bri_5 | int }}"
+                transition: "{{ light_transition | float }}"
+            - choose:
+                - conditions: ["{{ lamp5_night_use_rgb }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_5 }}"
+                      data:
+                        rgb_color: "{{ lamp5_night_rgb_color }}"
+                - conditions: ["{{ lamp5_night_use_color_temp }}"]
+                  sequence:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ light_entity_5 }}"
+                      data:
+                        color_temp_kelvin: "{{ lamp5_night_color_temp_kelvin | int }}"
+
+        - repeat:
+            while:
+              - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
+            sequence:
+              - delay:
+                  seconds: 10
+        - delay:
+            minutes: "{{ night_time_delay | float }}"
+
+        - action: light.turn_off
+          target:
+            entity_id: "{{ light_entity_1 }}"
+          data:
+            transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp2_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_2 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp3_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_3 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp4_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_4 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ lamp5_active }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_5 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Branch 3: AUS
+    # ──────────────────────────────────────────────────────────────────────────
+    - conditions:
+        - condition: trigger
+          id: "motion"
+        - "{{ effective_mode == 'off' }}"
+      sequence: []
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Branch 4: AUFRÄUM-BRANCH (Waisenkinder-Schutz)
+    #
+    # FIX v5.2: lux_drop-Trigger kann mit mode:restart einen laufenden Nachlauf
+    # abbrechen → Default überspringt → Lampen bleiben an.
+    #
+    # FIX v5.3: Bedingung prüft ob IRGENDEINE konfigurierte Lampe noch an ist,
+    # nicht nur lamp1. Vorher: lamp1 bereits aus (Auto-Off / unterbrochener
+    # Ausschalt-Zyklus) → lamp2-5 wurden nie ausgeschaltet.
+    # ──────────────────────────────────────────────────────────────────────────
+    - conditions:
+        - "{{ trigger.id != 'switch' }}"
+        - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count == 0 }}"
+        - "{{ bypass_switch | length == 0 or not is_state(bypass_switch, 'on') }}"
+        - condition: or
+          conditions:
+            - condition: state
+              entity_id: !input light_entity_1
+              state: "on"
+            - "{{ lamp2_active and is_state(light_entity_2, 'on') }}"
+            - "{{ lamp3_active and is_state(light_entity_3, 'on') }}"
+            - "{{ lamp4_active and is_state(light_entity_4, 'on') }}"
+            - "{{ lamp5_active and is_state(light_entity_5, 'on') }}"
+      sequence:
+        - delay:
+            minutes: >-
+              {{ night_time_delay | float if effective_mode == 'night_light'
+                 else time_delay | float }}
+        - if:
+            - "{{ bypass_switch | length == 0 or not is_state(bypass_switch, 'on') }}"
+            - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count == 0 }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_1 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp2_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_2 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp3_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_3 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp4_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_4 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp5_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_5 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Default: LUX-REGELUNG oder KONSTANT
+    # ──────────────────────────────────────────────────────────────────────────
+    default:
+      - if:
+          - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
+          - "{{ effective_mode in ['lux', 'constant'] }}"
+          - condition: or
+            conditions:
+              - "{{ effective_mode == 'constant' }}"
+              - condition: state
+                entity_id: !input light_entity_1
+                state: "on"
+              - condition: numeric_state
+                entity_id: !input lux_sensor
+                below: !input activation_lux_threshold
+        then:
+          - variables:
+              on_bri_1: >-
+                {{ lamp1_constant_bri | int if effective_mode == 'constant' else init_bri_1 | int }}
+              on_bri_2: >-
+                {{ lamp2_constant_bri | int if effective_mode == 'constant' else init_bri_2 | int }}
+              on_bri_3: >-
+                {{ lamp3_constant_bri | int if effective_mode == 'constant' else init_bri_3 | int }}
+              on_bri_4: >-
+                {{ lamp4_constant_bri | int if effective_mode == 'constant' else init_bri_4 | int }}
+              on_bri_5: >-
+                {{ lamp5_constant_bri | int if effective_mode == 'constant' else init_bri_5 | int }}
+
+          - action: light.turn_on
+            target:
+              entity_id: "{{ light_entity_1 }}"
+            data:
+              brightness_pct: "{{ on_bri_1 }}"
+              transition: "{{ light_transition | float }}"
+          - choose:
+              - conditions: ["{{ lamp1_use_rgb }}"]
+                sequence:
+                  - action: light.turn_on
+                    target:
+                      entity_id: "{{ light_entity_1 }}"
+                    data:
+                      rgb_color: "{{ lamp1_rgb_color }}"
+              - conditions: ["{{ lamp1_use_color_temp }}"]
+                sequence:
+                  - action: light.turn_on
+                    target:
+                      entity_id: "{{ light_entity_1 }}"
+                    data:
+                      color_temp_kelvin: "{{ lamp1_color_temp_kelvin | int }}"
+          - if:
+              - "{{ lamp2_active }}"
+            then:
+              - action: light.turn_on
+                target:
+                  entity_id: "{{ light_entity_2 }}"
+                data:
+                  brightness_pct: "{{ on_bri_2 }}"
+                  transition: "{{ light_transition | float }}"
+              - choose:
+                  - conditions: ["{{ lamp2_use_rgb }}"]
+                    sequence:
+                      - action: light.turn_on
+                        target:
+                          entity_id: "{{ light_entity_2 }}"
+                        data:
+                          rgb_color: "{{ lamp2_rgb_color }}"
+                  - conditions: ["{{ lamp2_use_color_temp }}"]
+                    sequence:
+                      - action: light.turn_on
+                        target:
+                          entity_id: "{{ light_entity_2 }}"
+                        data:
+                          color_temp_kelvin: "{{ lamp2_color_temp_kelvin | int }}"
+          - if:
+              - "{{ lamp3_active }}"
+            then:
+              - action: light.turn_on
+                target:
+                  entity_id: "{{ light_entity_3 }}"
+                data:
+                  brightness_pct: "{{ on_bri_3 }}"
+                  transition: "{{ light_transition | float }}"
+              - choose:
+                  - conditions: ["{{ lamp3_use_rgb }}"]
+                    sequence:
+                      - action: light.turn_on
+                        target:
+                          entity_id: "{{ light_entity_3 }}"
+                        data:
+                          rgb_color: "{{ lamp3_rgb_color }}"
+                  - conditions: ["{{ lamp3_use_color_temp }}"]
+                    sequence:
+                      - action: light.turn_on
+                        target:
+                          entity_id: "{{ light_entity_3 }}"
+                        data:
+                          color_temp_kelvin: "{{ lamp3_color_temp_kelvin | int }}"
+          - if:
+              - "{{ lamp4_active }}"
+            then:
+              - action: light.turn_on
+                target:
+                  entity_id: "{{ light_entity_4 }}"
+                data:
+                  brightness_pct: "{{ on_bri_4 }}"
+                  transition: "{{ light_transition | float }}"
+              - choose:
+                  - conditions: ["{{ lamp4_use_rgb }}"]
+                    sequence:
+                      - action: light.turn_on
+                        target:
+                          entity_id: "{{ light_entity_4 }}"
+                        data:
+                          rgb_color: "{{ lamp4_rgb_color }}"
+                  - conditions: ["{{ lamp4_use_color_temp }}"]
+                    sequence:
+                      - action: light.turn_on
+                        target:
+                          entity_id: "{{ light_entity_4 }}"
+                        data:
+                          color_temp_kelvin: "{{ lamp4_color_temp_kelvin | int }}"
+          - if:
+              - "{{ lamp5_active }}"
+            then:
+              - action: light.turn_on
+                target:
+                  entity_id: "{{ light_entity_5 }}"
+                data:
+                  brightness_pct: "{{ on_bri_5 }}"
+                  transition: "{{ light_transition | float }}"
+              - choose:
+                  - conditions: ["{{ lamp5_use_rgb }}"]
+                    sequence:
+                      - action: light.turn_on
+                        target:
+                          entity_id: "{{ light_entity_5 }}"
+                        data:
+                          rgb_color: "{{ lamp5_rgb_color }}"
+                  - conditions: ["{{ lamp5_use_color_temp }}"]
+                    sequence:
+                      - action: light.turn_on
+                        target:
+                          entity_id: "{{ light_entity_5 }}"
+                        data:
+                          color_temp_kelvin: "{{ lamp5_color_temp_kelvin | int }}"
+
+          # ── Lux-Regelschleife ─────────────────────────────────────────────
+          - if:
+              - "{{ effective_mode == 'lux' }}"
+            then:
+              - repeat:
+                  while:
+                    - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0
+                           or (bypass_switch | length > 0 and is_state(bypass_switch, 'on')) }}"
+                  sequence:
+                    - delay:
+                        seconds: "{{ adjustment_interval | int }}"
+                    - if:
+                        - condition: state
+                          entity_id: !input light_entity_1
+                          state: "on"
+                        - "{{ has_value(lux_sensor) }}"
+                      then:
+                        - variables:
+                            lux_sample_1: "{{ states(lux_sensor) | float(0) }}"
+                        - delay:
+                            seconds: 3
+                        - variables:
+                            lux_sample_2: "{{ states(lux_sensor) | float(0) }}"
+                            current_lux_val: "{{ ((lux_sample_1 + lux_sample_2) / 2) | round(1) }}"
+                            current_bri_1: "{{ state_attr(light_entity_1, 'brightness') | float(128) / 2.55 }}"
+                            current_bri_2: >-
+                              {{ state_attr(light_entity_2, 'brightness') | float(128) / 2.55
+                                 if lamp2_active and is_state(light_entity_2, 'on') else 0 }}
+                            current_bri_3: >-
+                              {{ state_attr(light_entity_3, 'brightness') | float(128) / 2.55
+                                 if lamp3_active and is_state(light_entity_3, 'on') else 0 }}
+                            current_bri_4: >-
+                              {{ state_attr(light_entity_4, 'brightness') | float(128) / 2.55
+                                 if lamp4_active and is_state(light_entity_4, 'on') else 0 }}
+                            current_bri_5: >-
+                              {{ state_attr(light_entity_5, 'brightness') | float(128) / 2.55
+                                 if lamp5_active and is_state(light_entity_5, 'on') else 0 }}
+                            lux_deviation: "{{ target_lux - current_lux_val }}"
+
+                        - choose:
+                            # Auto-Off: Lampe 1 am Minimum + immer noch zu hell
+                            - conditions:
+                                - "{{ lux_deviation < -lux_hysteresis }}"
+                                - "{{ auto_off_brightness | int > 0 }}"
+                                - "{{ current_bri_1 | round | int <= auto_off_brightness | int }}"
+                              sequence:
+                                - action: light.turn_off
+                                  target:
+                                    entity_id: "{{ light_entity_1 }}"
+                                  data:
+                                    transition: "{{ light_transition_off | float }}"
+                                - if:
+                                    - "{{ lamp2_active and is_state(light_entity_2, 'on') }}"
+                                  then:
+                                    - action: light.turn_off
+                                      target:
+                                        entity_id: "{{ light_entity_2 }}"
+                                      data:
+                                        transition: "{{ light_transition_off | float }}"
+                                - if:
+                                    - "{{ lamp3_active and is_state(light_entity_3, 'on') }}"
+                                  then:
+                                    - action: light.turn_off
+                                      target:
+                                        entity_id: "{{ light_entity_3 }}"
+                                      data:
+                                        transition: "{{ light_transition_off | float }}"
+                                - if:
+                                    - "{{ lamp4_active and is_state(light_entity_4, 'on') }}"
+                                  then:
+                                    - action: light.turn_off
+                                      target:
+                                        entity_id: "{{ light_entity_4 }}"
+                                      data:
+                                        transition: "{{ light_transition_off | float }}"
+                                - if:
+                                    - "{{ lamp5_active and is_state(light_entity_5, 'on') }}"
+                                  then:
+                                    - action: light.turn_off
+                                      target:
+                                        entity_id: "{{ light_entity_5 }}"
+                                      data:
+                                        transition: "{{ light_transition_off | float }}"
+                            # Zu dunkel → heller
+                            - conditions: ["{{ lux_deviation > lux_hysteresis }}"]
+                              sequence:
+                                - action: light.turn_on
+                                  target:
+                                    entity_id: "{{ light_entity_1 }}"
+                                  data:
+                                    brightness_pct: >
+                                      {{ [1, [100, (current_bri_1 + adjustment_step) | round | int] | min] | max }}
+                                    transition: "{{ light_transition | float }}"
+                                - if:
+                                    - "{{ lamp2_active and is_state(light_entity_2, 'on') }}"
+                                  then:
+                                    - action: light.turn_on
+                                      target:
+                                        entity_id: "{{ light_entity_2 }}"
+                                      data:
+                                        brightness_pct: >
+                                          {{ [1, [100, (current_bri_2 + adjustment_step) | round | int] | min] | max }}
+                                        transition: "{{ light_transition | float }}"
+                                - if:
+                                    - "{{ lamp3_active and is_state(light_entity_3, 'on') }}"
+                                  then:
+                                    - action: light.turn_on
+                                      target:
+                                        entity_id: "{{ light_entity_3 }}"
+                                      data:
+                                        brightness_pct: >
+                                          {{ [1, [100, (current_bri_3 + adjustment_step) | round | int] | min] | max }}
+                                        transition: "{{ light_transition | float }}"
+                                - if:
+                                    - "{{ lamp4_active and is_state(light_entity_4, 'on') }}"
+                                  then:
+                                    - action: light.turn_on
+                                      target:
+                                        entity_id: "{{ light_entity_4 }}"
+                                      data:
+                                        brightness_pct: >
+                                          {{ [1, [100, (current_bri_4 + adjustment_step) | round | int] | min] | max }}
+                                        transition: "{{ light_transition | float }}"
+                                - if:
+                                    - "{{ lamp5_active and is_state(light_entity_5, 'on') }}"
+                                  then:
+                                    - action: light.turn_on
+                                      target:
+                                        entity_id: "{{ light_entity_5 }}"
+                                      data:
+                                        brightness_pct: >
+                                          {{ [1, [100, (current_bri_5 + adjustment_step) | round | int] | min] | max }}
+                                        transition: "{{ light_transition | float }}"
+                            # Zu hell → dunkler
+                            - conditions: ["{{ lux_deviation < -lux_hysteresis }}"]
+                              sequence:
+                                - action: light.turn_on
+                                  target:
+                                    entity_id: "{{ light_entity_1 }}"
+                                  data:
+                                    brightness_pct: >
+                                      {{ [1, [100, (current_bri_1 - adjustment_step) | round | int] | min] | max }}
+                                    transition: "{{ light_transition | float }}"
+                                - if:
+                                    - "{{ lamp2_active and is_state(light_entity_2, 'on') }}"
+                                  then:
+                                    - action: light.turn_on
+                                      target:
+                                        entity_id: "{{ light_entity_2 }}"
+                                      data:
+                                        brightness_pct: >
+                                          {{ [1, [100, (current_bri_2 - adjustment_step) | round | int] | min] | max }}
+                                        transition: "{{ light_transition | float }}"
+                                - if:
+                                    - "{{ lamp3_active and is_state(light_entity_3, 'on') }}"
+                                  then:
+                                    - action: light.turn_on
+                                      target:
+                                        entity_id: "{{ light_entity_3 }}"
+                                      data:
+                                        brightness_pct: >
+                                          {{ [1, [100, (current_bri_3 - adjustment_step) | round | int] | min] | max }}
+                                        transition: "{{ light_transition | float }}"
+                                - if:
+                                    - "{{ lamp4_active and is_state(light_entity_4, 'on') }}"
+                                  then:
+                                    - action: light.turn_on
+                                      target:
+                                        entity_id: "{{ light_entity_4 }}"
+                                      data:
+                                        brightness_pct: >
+                                          {{ [1, [100, (current_bri_4 - adjustment_step) | round | int] | min] | max }}
+                                        transition: "{{ light_transition | float }}"
+                                - if:
+                                    - "{{ lamp5_active and is_state(light_entity_5, 'on') }}"
+                                  then:
+                                    - action: light.turn_on
+                                      target:
+                                        entity_id: "{{ light_entity_5 }}"
+                                      data:
+                                        brightness_pct: >
+                                          {{ [1, [100, (current_bri_5 - adjustment_step) | round | int] | min] | max }}
+                                        transition: "{{ light_transition | float }}"
+
+          # ── Konstant-Modus: Warten ────────────────────────────────────────
+          - if:
+              - "{{ effective_mode == 'constant' }}"
+            then:
+              - repeat:
+                  while:
+                    - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0
+                           or (bypass_switch | length > 0 and is_state(bypass_switch, 'on')) }}"
+                  sequence:
+                    - delay:
+                        seconds: 10
+
+          # ── Nachlauf ──────────────────────────────────────────────────────
+          - delay:
+              minutes: "{{ time_delay | float }}"
+
+          # ── Bypass-Guard ──────────────────────────────────────────────────
+          - if:
+              - "{{ bypass_switch | length == 0 or not is_state(bypass_switch, 'on') }}"
+            then:
+              - action: light.turn_off
+                target:
+                  entity_id: "{{ light_entity_1 }}"
+                data:
+                  transition: "{{ light_transition_off | float }}"
+              - if:
+                  - "{{ lamp2_active }}"
+                then:
+                  - action: light.turn_off
+                    target:
+                      entity_id: "{{ light_entity_2 }}"
+                    data:
+                      transition: "{{ light_transition_off | float }}"
+              - if:
+                  - "{{ lamp3_active }}"
+                then:
+                  - action: light.turn_off
+                    target:
+                      entity_id: "{{ light_entity_3 }}"
+                    data:
+                      transition: "{{ light_transition_off | float }}"
+              - if:
+                  - "{{ lamp4_active }}"
+                then:
+                  - action: light.turn_off
+                    target:
+                      entity_id: "{{ light_entity_4 }}"
+                    data:
+                      transition: "{{ light_transition_off | float }}"
+              - if:
+                  - "{{ lamp5_active }}"
+                then:
+                  - action: light.turn_off
+                    target:
+                      entity_id: "{{ light_entity_5 }}"
+                    data:
+                      transition: "{{ light_transition_off | float }}"
