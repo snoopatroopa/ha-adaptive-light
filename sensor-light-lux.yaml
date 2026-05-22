@@ -1970,7 +1970,10 @@ action:
     # Ausschalt-Zyklus) → lamp2-5 wurden nie ausgeschaltet.
     # ──────────────────────────────────────────────────────────────────────────
     - conditions:
-        - "{{ trigger.id != 'switch' }}"
+        - condition: not
+          conditions:
+            - condition: trigger
+              id: switch
         - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count == 0 }}"
         - "{{ bypass_switch | length == 0 or not is_state(bypass_switch, 'on') }}"
         - condition: or
