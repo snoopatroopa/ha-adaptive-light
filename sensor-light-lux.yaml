@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 5.4**
+    **Version: 2026.06.21**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -79,7 +79,13 @@ blueprint:
     <details>
     <summary><b>Changelog:</b> 👈</summary>
 
-    **v5.4** – Neues Feature: Sechster Zeitraum (Zeitraum 6). Jeder Zeitraum
+    **2026.06.21** – Bugfix: Race Condition im Lux-Regelkreis. Der Lux-Step-Up
+    feuerte noch im letzten Schleifendurchlauf, nachdem der Bewegungssensor
+    bereits abgefallen war. Geräte mit sequenzieller Transition-Verarbeitung
+    (DALI / bestimmte Zigbee-Firmware) schalteten sich dadurch 1–2 Sekunden
+    nach dem Ausschalten erneut ein. Fix: Lux-Messblock prüft nun zusätzlich
+    ob der Bewegungssensor noch aktiv ist, bevor ein Step-Up ausgelöst wird.
+    Neues Feature: Sechster Zeitraum (Zeitraum 6). Jeder Zeitraum
     erhält ein eigenes Ziel-Lux-Feld (`Ziel-Lux pro Zeitraum`). Ist der Wert 0,
     wird das globale Ziel-Lux aus dem Bereich „Lux-Regelung" als Fallback
     verwendet. Bestehende Instanzen müssen nicht angepasst werden.
@@ -2311,6 +2317,7 @@ action:
                           entity_id: !input light_entity_1
                           state: "on"
                         - "{{ has_value(lux_sensor) }}"
+                        - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
                       then:
                         - variables:
                             lux_sample_1: "{{ states(lux_sensor) | float(0) }}"
