@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 5.3**
+    **Version: 5.4**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -78,6 +78,11 @@ blueprint:
 
     <details>
     <summary><b>Changelog:</b> 👈</summary>
+
+    **v5.4** – Neues Feature: Sechster Zeitraum (Zeitraum 6). Jeder Zeitraum
+    erhält ein eigenes Ziel-Lux-Feld (`Ziel-Lux pro Zeitraum`). Ist der Wert 0,
+    wird das globale Ziel-Lux aus dem Bereich „Lux-Regelung" als Fallback
+    verwendet. Bestehende Instanzen müssen nicht angepasst werden.
 
     **v5.3** – Bugfix: Aufräum-Branch (Branch 4) prüfte bisher nur ob Lampe 1
     an ist. Wenn Lampe 1 durch Auto-Off oder einen unterbrochenen Ausschalt-Zyklus
@@ -1102,6 +1107,17 @@ blueprint:
                   value: "night_light"
                 - label: "⛔ Aus – nicht einschalten"
                   value: "off"
+        period_1_target_lux:
+          name: "Zeitraum 1 – Ziel-Lux"
+          description: >
+            Nur wirksam im Lux-Regelungs-Modus. 0 = globalen Ziel-Lux-Wert verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 5
+              unit_of_measurement: lux
 
         period_2_enabled:
           name: "Zeitraum 2 aktivieren"
@@ -1127,6 +1143,17 @@ blueprint:
                   value: "night_light"
                 - label: "⛔ Aus – nicht einschalten"
                   value: "off"
+        period_2_target_lux:
+          name: "Zeitraum 2 – Ziel-Lux"
+          description: >
+            Nur wirksam im Lux-Regelungs-Modus. 0 = globalen Ziel-Lux-Wert verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 5
+              unit_of_measurement: lux
 
         period_3_enabled:
           name: "Zeitraum 3 aktivieren"
@@ -1152,6 +1179,17 @@ blueprint:
                   value: "night_light"
                 - label: "⛔ Aus – nicht einschalten"
                   value: "off"
+        period_3_target_lux:
+          name: "Zeitraum 3 – Ziel-Lux"
+          description: >
+            Nur wirksam im Lux-Regelungs-Modus. 0 = globalen Ziel-Lux-Wert verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 5
+              unit_of_measurement: lux
 
         period_4_enabled:
           name: "Zeitraum 4 aktivieren"
@@ -1177,6 +1215,17 @@ blueprint:
                   value: "night_light"
                 - label: "⛔ Aus – nicht einschalten"
                   value: "off"
+        period_4_target_lux:
+          name: "Zeitraum 4 – Ziel-Lux"
+          description: >
+            Nur wirksam im Lux-Regelungs-Modus. 0 = globalen Ziel-Lux-Wert verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 5
+              unit_of_measurement: lux
 
         period_5_enabled:
           name: "Zeitraum 5 aktivieren"
@@ -1202,6 +1251,53 @@ blueprint:
                   value: "night_light"
                 - label: "⛔ Aus – nicht einschalten"
                   value: "off"
+        period_5_target_lux:
+          name: "Zeitraum 5 – Ziel-Lux"
+          description: >
+            Nur wirksam im Lux-Regelungs-Modus. 0 = globalen Ziel-Lux-Wert verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 5
+              unit_of_measurement: lux
+
+        period_6_enabled:
+          name: "Zeitraum 6 aktivieren"
+          default: false
+          selector:
+            boolean:
+        period_6_start:
+          name: "Zeitraum 6 – Startzeit"
+          default: "00:00:00"
+          selector:
+            time:
+        period_6_mode:
+          name: "Zeitraum 6 – Modus"
+          default: "night_light"
+          selector:
+            select:
+              options:
+                - label: "🔆 Lux-Regelung"
+                  value: "lux"
+                - label: "💡 Konstante Helligkeit"
+                  value: "constant"
+                - label: "🌙 Nachtlicht"
+                  value: "night_light"
+                - label: "⛔ Aus – nicht einschalten"
+                  value: "off"
+        period_6_target_lux:
+          name: "Zeitraum 6 – Ziel-Lux"
+          description: >
+            Nur wirksam im Lux-Regelungs-Modus. 0 = globalen Ziel-Lux-Wert verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 1000
+              step: 5
+              unit_of_measurement: lux
 
     # ═══════════════════════════════════════════════════════════════
     night_light_settings:
@@ -1397,6 +1493,15 @@ variables:
   period_5_enabled: !input period_5_enabled
   period_5_start: !input period_5_start
   period_5_mode: !input period_5_mode
+  period_6_enabled: !input period_6_enabled
+  period_6_start: !input period_6_start
+  period_6_mode: !input period_6_mode
+  period_1_target_lux: !input period_1_target_lux
+  period_2_target_lux: !input period_2_target_lux
+  period_3_target_lux: !input period_3_target_lux
+  period_4_target_lux: !input period_4_target_lux
+  period_5_target_lux: !input period_5_target_lux
+  period_6_target_lux: !input period_6_target_lux
   include_night_light: !input include_night_light
   include_switch_trigger: !input include_switch_trigger
   switch_trigger_entity: !input switch_trigger_entity
@@ -1410,7 +1515,18 @@ variables:
     {% if period_3_enabled and t >= period_3_start %}{% set ns.result = period_3_mode %}{% endif %}
     {% if period_4_enabled and t >= period_4_start %}{% set ns.result = period_4_mode %}{% endif %}
     {% if period_5_enabled and t >= period_5_start %}{% set ns.result = period_5_mode %}{% endif %}
+    {% if period_6_enabled and t >= period_6_start %}{% set ns.result = period_6_mode %}{% endif %}
     {{ ns.result }}
+
+  active_target_lux: >-
+    {% set ns = namespace(result=period_1_target_lux | int(0)) %}
+    {% set t = now().strftime('%H:%M:%S') %}
+    {% if period_2_enabled and t >= period_2_start %}{% set ns.result = period_2_target_lux | int(0) %}{% endif %}
+    {% if period_3_enabled and t >= period_3_start %}{% set ns.result = period_3_target_lux | int(0) %}{% endif %}
+    {% if period_4_enabled and t >= period_4_start %}{% set ns.result = period_4_target_lux | int(0) %}{% endif %}
+    {% if period_5_enabled and t >= period_5_start %}{% set ns.result = period_5_target_lux | int(0) %}{% endif %}
+    {% if period_6_enabled and t >= period_6_start %}{% set ns.result = period_6_target_lux | int(0) %}{% endif %}
+    {% if ns.result == 0 %}{{ target_lux | int }}{% else %}{{ ns.result }}{% endif %}
 
   effective_mode: >-
     {% if active_mode == 'night_light' and include_night_light == 'night_light_disabled' %}
@@ -2216,7 +2332,7 @@ action:
                             current_bri_5: >-
                               {{ state_attr(light_entity_5, 'brightness') | float(128) / 2.55
                                  if lamp5_active and is_state(light_entity_5, 'on') else 0 }}
-                            lux_deviation: "{{ target_lux - current_lux_val }}"
+                            lux_deviation: "{{ active_target_lux - current_lux_val }}"
 
                         - choose:
                             # Auto-Off: Lampe 1 am Minimum + immer noch zu hell
