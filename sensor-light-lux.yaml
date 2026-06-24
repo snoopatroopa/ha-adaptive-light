@@ -1902,7 +1902,7 @@ action:
               data:
                 transition: "{{ light_transition_off | float }}"
         - delay:
-            milliseconds: 500
+            seconds: "{{ (light_transition_off | float) + 0.5 }}"
 
         - if:
             - "{{ not lamp1_night_disabled }}"
