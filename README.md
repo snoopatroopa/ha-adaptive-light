@@ -3,7 +3,7 @@
 **Home Assistant Blueprint** für bewegungsgesteuerte, lux-geregelte Beleuchtung.
 
 [![HA Blueprint](https://img.shields.io/badge/Home%20Assistant-Blueprint-blue?logo=home-assistant)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/Version-5.3-green)]()
+[![Version](https://img.shields.io/badge/Version-2026.06.24-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -81,6 +81,29 @@ Trigger (Bewegung / Schalter / Lux-Drop)
 ---
 
 ## Changelog
+
+### 2026.06.24
+- **Bugfix:** Nachtlicht-Branch wartete nach dem Aufräumen (Ausschalten aller
+  Lampen) nur fest 500 ms, bevor die Lampen mit Nachtlicht-Helligkeit/-Farbe
+  wieder eingeschaltet wurden. War die konfigurierte Ausschalt-Übergangszeit
+  (`light_transition_off`, Default 2 s) länger als 500 ms, lief die Lampe noch
+  mitten in der Ausschalt-Transition und übernahm teils die alte Hauptfarbe
+  statt der Nachtlicht-RGB-Farbe.
+  Fix: Wartezeit richtet sich jetzt nach `light_transition_off` statt einem
+  festen Wert.
+
+### 2026.06.21
+- **Bugfix:** Race Condition im Lux-Regelkreis. Der Lux-Step-Up feuerte noch
+  im letzten Schleifendurchlauf, nachdem der Bewegungssensor bereits
+  abgefallen war. Geräte mit sequenzieller Transition-Verarbeitung (DALI /
+  bestimmte Zigbee-Firmware) schalteten sich dadurch 1–2 Sekunden nach dem
+  Ausschalten erneut ein.
+  Fix: Lux-Messblock prüft nun zusätzlich ob der Bewegungssensor noch aktiv
+  ist, bevor ein Step-Up ausgelöst wird.
+- **Neu:** Sechster Zeitraum (Zeitraum 6). Jeder Zeitraum erhält ein eigenes
+  Ziel-Lux-Feld (`Ziel-Lux pro Zeitraum`). Ist der Wert 0, wird das globale
+  Ziel-Lux aus dem Bereich „Lux-Regelung" als Fallback verwendet. Bestehende
+  Instanzen müssen nicht angepasst werden.
 
 ### v5.3
 - **Bugfix:** Aufräum-Branch (Branch 4) prüfte bisher nur ob Lampe 1 an ist.
