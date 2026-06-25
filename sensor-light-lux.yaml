@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 2026.06.21**
+    **Version: 2026.06.24**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -78,6 +78,15 @@ blueprint:
 
     <details>
     <summary><b>Changelog:</b> 👈</summary>
+
+    **2026.06.24** – Bugfix: Nachtlicht-Branch wartete nach dem Aufräumen
+    (Ausschalten aller Lampen) nur fest 500ms, bevor die Lampen mit der
+    Nachtlicht-Helligkeit/-Farbe wieder eingeschaltet wurden. War die
+    konfigurierte Ausschalt-Übergangszeit (`light_transition_off`, Default 2s)
+    länger als 500ms, lief die Lampe noch mitten in der Ausschalt-Transition
+    und übernahm teils die alte Hauptfarbe statt der Nachtlicht-RGB-Farbe.
+    Fix: Wartezeit richtet sich jetzt nach `light_transition_off` statt einem
+    festen Wert.
 
     **2026.06.21** – Bugfix: Race Condition im Lux-Regelkreis. Der Lux-Step-Up
     feuerte noch im letzten Schleifendurchlauf, nachdem der Bewegungssensor
@@ -1902,7 +1911,7 @@ action:
               data:
                 transition: "{{ light_transition_off | float }}"
         - delay:
-            milliseconds: 500
+            seconds: "{{ (light_transition_off | float) + 0.5 }}"
 
         - if:
             - "{{ not lamp1_night_disabled }}"
