@@ -3,7 +3,7 @@
 ## Repo
 - GitHub: `snoopatroopa/ha-adaptive-light`
 - Blueprint-Datei: `sensor-light-lux.yaml`
-- Aktuelle Version: **5.4**
+- Aktuelle Version: **2026.07.10** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
 
 ---
 
@@ -27,7 +27,7 @@ Trigger: motion | motion_off | switch | lux_drop
     │     → nichts tun
     │
     ├── Branch 5: AUFRÄUM / Waisenkinder-Schutz (Sicherheitsnetz für Randfälle,
-    │     z.B. lux_drop-Trigger; regulärer Aus-Fall läuft seit v5.4 über Branch 2)
+    │     z.B. lux_drop-Trigger; regulärer Aus-Fall läuft seit 2026.07.10 über Branch 2)
     │     Greift wenn: kein Switch-Trigger, keine Präsenz, kein Bypass,
     │     UND mindestens eine Lampe noch an (lamp1 ODER lamp2-5)
     │     → Nachlauf nachholen → doppelt prüfen → Ausschalten
@@ -44,7 +44,7 @@ Trigger: motion | motion_off | switch | lux_drop
 
 | Thema | Entscheidung |
 |-------|-------------|
-| `mode: restart` | Neue Trigger unterbrechen laufenden Run → eigener `motion_off`-Trigger (Branch 2) garantiert trotzdem ein Ausschalten; Branch 5 fängt verbleibende Randfälle |
+| `mode: restart` | Neue Trigger unterbrechen laufenden Run → eigener `motion_off`-Trigger (Branch 2, seit 2026.07.10) garantiert trotzdem ein Ausschalten; Branch 5 fängt verbleibende Randfälle |
 | Lichtkurve | 5-Punkt lineare Interpolation, Template unvermeidbar |
 | Lux-Messung | 2-Sample Mittelung (3s Delay) gegen Sensorrauschen |
 | Auto-Off | Nur wenn lamp1 ≤ auto_off_brightness UND zu hell → alle Lampen aus |
@@ -78,7 +78,7 @@ Auto-Off oder unterbrochenen Ausschalt-Zyklus bereits aus war, blieben lamp2–5
 dauerhaft an.
 **Fix:** `condition: or` prüft jetzt alle konfigurierten Lampen.
 
-### v5.4 – Kein eigenständiger Aus-Trigger
+### 2026.07.10 – Kein eigenständiger Aus-Trigger
 **Problem:** Ausschalten war bisher kein eigenständiger Trigger, sondern nur
 Teil des laufenden Einschalt-Durchlaufs (Regelschleife/Warte-Logik wartet
 intern auf Bewegungsende). Mit `mode: restart` konnte ein neuer Durchlauf
@@ -133,7 +133,7 @@ with open('sensor-light-lux.yaml') as f:
 
 ## Offene Punkte / Ideen
 
-- [ ] Testen ob der v5.4-Fix (eigenständiger `motion_off`-Trigger) das
+- [ ] Testen ob der 2026.07.10-Fix (eigenständiger `motion_off`-Trigger) das
       "Lampen bleiben an"-Problem auf Südendamm50 (`automation.lichtsteuerung_bad_og_bei_bewegung`)
       vollständig löst – siehe Abnahmekriterien im Fehlerbericht vom 10.07.2026
 - [ ] Repo auf Public stellen nach erfolgreichem Test
@@ -143,7 +143,7 @@ with open('sensor-light-lux.yaml') as f:
 
 ## Changelog
 
-### v5.4 – Eigenständiger Aus-Trigger (Branch 2: BEWEGUNG-AUS)
+### 2026.07.10 – Eigenständiger Aus-Trigger (Branch 2: BEWEGUNG-AUS)
 **Änderung:** Neuer `state`-Trigger `motion → off` (`id: motion_off`) plus
 neuer Branch 2, der unabhängig vom Zustand jedes laufenden Durchlaufs
 ausschaltet (Nachlauf + erneute Präsenz-/Bypass-/Switch-Prüfung). Lux-
@@ -151,7 +151,7 @@ Regelschleife prüft Bewegung jetzt zusätzlich direkt vor jedem Stellschritt.
 **Grund:** Ausschalten hing bisher am Überleben eines laufenden
 Einschalt-Durchlaufs; `mode: restart` konnte diesen Durchlauf jederzeit
 abbrechen und damit jeden zukünftigen Ausschalt-Pfad verlieren. Details
-siehe „Bekannte Bugs & Fixes – v5.4" oben.
+siehe „Bekannte Bugs & Fixes – 2026.07.10" oben.
 
 ### v5.3.1 – Branch-4-Condition nativ
 **Änderung:** `"{{ trigger.id != 'switch' }}"` in Branch 4 durch native

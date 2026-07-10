@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 2026.07.10 (v5.4)**
+    **Version: 2026.07.10**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -79,7 +79,7 @@ blueprint:
     <details>
     <summary><b>Changelog:</b> 👈</summary>
 
-    **v5.4 (2026.07.10)** – Bugfix: Ausschalten war bisher kein eigenständiger
+    **2026.07.10** – Bugfix: Ausschalten war bisher kein eigenständiger
     Trigger, sondern nur Teil des laufenden Einschalt-Durchlaufs. Mit `mode:
     restart` konnte ein neuer Durchlauf (z.B. erneute Bewegung) den wartenden
     Durchlauf abbrechen; kippte dabei die Aktivierungsbedingung (z.B. Lux
@@ -1888,7 +1888,7 @@ action:
     # ──────────────────────────────────────────────────────────────────────────
     # Branch 2: BEWEGUNG-AUS (eigenständiger Aus-Trigger)
     #
-    # FIX v5.4: Ausschalten war bisher kein eigenständiger Trigger, sondern nur
+    # FIX 2026.07.10: Ausschalten war bisher kein eigenständiger Trigger, sondern nur
     # Teil der laufenden Regelschleife/Warte-Logik. In Kombination mit
     # mode: restart konnte ein neuer Lauf (z.B. erneute Bewegung) den
     # wartenden Lauf abbrechen; kippte dabei die Aktivierungsbedingung
@@ -2189,7 +2189,7 @@ action:
     # nicht nur lamp1. Vorher: lamp1 bereits aus (Auto-Off / unterbrochener
     # Ausschalt-Zyklus) → lamp2-5 wurden nie ausgeschaltet.
     #
-    # Seit v5.4 übernimmt Branch 2 (BEWEGUNG-AUS) den regulären Ausschalt-Fall.
+    # Seit 2026.07.10 übernimmt Branch 2 (BEWEGUNG-AUS) den regulären Ausschalt-Fall.
     # Dieser Branch bleibt als zusätzliches Sicherheitsnetz für Randfälle
     # (z.B. lux_drop-Trigger, Bypass-Wechsel) bestehen.
     # ──────────────────────────────────────────────────────────────────────────
@@ -2443,7 +2443,7 @@ action:
                                  if lamp5_active and is_state(light_entity_5, 'on') else 0 }}
                             lux_deviation: "{{ active_target_lux - current_lux_val }}"
 
-                        # FIX v5.4: Bewegung wird hier erneut geprüft, direkt vor dem
+                        # FIX 2026.07.10: Bewegung wird hier erneut geprüft, direkt vor dem
                         # Stellschritt. Ohne diesen Check konnte während der 3s
                         # Mess-Verzögerung die Bewegung enden und der Stellschritt
                         # (inkl. eines möglichen Wieder-Einschaltens) trotzdem feuern.
