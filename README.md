@@ -3,7 +3,7 @@
 **Home Assistant Blueprint** für bewegungsgesteuerte, lux-geregelte Beleuchtung.
 
 [![HA Blueprint](https://img.shields.io/badge/Home%20Assistant-Blueprint-blue?logo=home-assistant)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/Version-2026.06.24-green)]()
+[![Version](https://img.shields.io/badge/Version-2026.07.10-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -68,12 +68,13 @@ Zeitraum 1 gilt ab 00:00 Uhr (Standardmodus).
 ## Betriebsmodi & Ablauf
 
 ```
-Trigger (Bewegung / Schalter / Lux-Drop)
+Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop)
     │
     ├── Branch 1: Zusatz-Trigger → Einschalten → Warten → Ausschalten
-    ├── Branch 2: Nachtlicht    → Einschalten → Warten → Nachlauf → Ausschalten
-    ├── Branch 3: Aus-Modus     → nichts tun
-    ├── Branch 4: Aufräum       → Nachlauf nachholen → Ausschalten (Waisenkinder-Schutz)
+    ├── Branch 2: Bewegung-Aus  → Nachlauf → erneute Prüfung → Ausschalten
+    ├── Branch 3: Nachtlicht    → Einschalten → Warten → Nachlauf → Ausschalten
+    ├── Branch 4: Aus-Modus     → nichts tun
+    ├── Branch 5: Aufräum       → Nachlauf nachholen → Ausschalten (Waisenkinder-Schutz)
     └── Default:  Lux / Konstant
                     → Einschalten → Regelschleife → Nachlauf → Ausschalten
 ```
@@ -81,6 +82,22 @@ Trigger (Bewegung / Schalter / Lux-Drop)
 ---
 
 ## Changelog
+
+### 2026.07.10
+- **Bugfix:** Ausschalten der Lampen war bisher kein eigenständiger Trigger,
+  sondern nur Teil des laufenden Einschalt-Durchlaufs. Bei `mode: restart`
+  konnte ein neuer Durchlauf (z. B. erneute Bewegung, während inzwischen die
+  Aktivierungsbedingung gekippt war – etwa weil der Umgebungslux durch das
+  eigene Lampenlicht über die Schwelle stieg) den wartenden Durchlauf
+  abbrechen. Der neue Durchlauf tat dann nichts und beendete sich sofort –
+  damit wartete kein Durchlauf mehr auf „Bewegung endet", die Lampen blieben
+  dauerhaft an.
+  Fix: Neuer eigenständiger `state`-Trigger „Bewegung → aus" schaltet jetzt
+  unabhängig vom Zustand jedes anderen Durchlaufs zuverlässig aus (inkl.
+  Nachlauf und erneuter Präsenz-/Bypass-/Schalter-Prüfung). Zusätzlich prüft
+  die Lux-Regelschleife die Bewegung jetzt direkt vor jedem Stellschritt
+  erneut, damit kein Stellschritt (inkl. eines möglichen Wieder-Einschaltens)
+  kurz nach dem Ausschalten mehr feuern kann.
 
 ### 2026.06.24
 - **Bugfix:** Nachtlicht-Branch wartete nach dem Aufräumen (Ausschalten aller

@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 2026.06.24**
+    **Version: 2026.07.10**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -79,6 +79,20 @@ blueprint:
     <details>
     <summary><b>Changelog:</b> 👈</summary>
 
+    **2026.07.10** – Bugfix: Ausschalten war bisher kein eigenständiger
+    Trigger, sondern nur Teil des laufenden Einschalt-Durchlaufs. Mit `mode:
+    restart` konnte ein neuer Durchlauf (z.B. erneute Bewegung) den wartenden
+    Durchlauf abbrechen; kippte dabei die Aktivierungsbedingung (z.B. Lux
+    durch das eigene Lampenlicht über die Aktivierungsschwelle), nahm der
+    neue Durchlauf den `default`-Zweig ohne Aktion → kein Durchlauf wartete
+    mehr auf „Bewegung aus" → Lampen blieben dauerhaft an.
+    Fix: eigener `state`-Trigger auf „Bewegung → aus" (Branch 2) schaltet
+    jetzt unabhängig vom Zustand jedes anderen Durchlaufs zuverlässig aus.
+    Zusätzlich prüft die Lux-Regelschleife die Bewegung jetzt direkt vor
+    jedem Stellschritt erneut (nicht mehr nur am Schleifenanfang), damit
+    kein Stellschritt (inkl. Wieder-Einschalten) kurz nach Bewegungsende
+    mehr feuern kann.
+
     **2026.06.24** – Bugfix: Nachtlicht-Branch wartete nach dem Aufräumen
     (Ausschalten aller Lampen) nur fest 500ms, bevor die Lampen mit der
     Nachtlicht-Helligkeit/-Farbe wieder eingeschaltet wurden. War die
@@ -112,6 +126,7 @@ blueprint:
 
     Required = *
   domain: automation
+  source_url: https://raw.githubusercontent.com/snoopatroopa/ha-adaptive-light/main/sensor-light-lux.yaml
 
   input:
 
@@ -1653,6 +1668,11 @@ trigger:
     to: "on"
     id: "motion"
   - trigger: state
+    entity_id: !input motion_sensor
+    to: "off"
+    for: 0
+    id: "motion_off"
+  - trigger: state
     entity_id: !input switch_trigger_entity
     to: "on"
     id: "switch"
@@ -1866,7 +1886,76 @@ action:
                 transition: "{{ light_transition_off | float }}"
 
     # ──────────────────────────────────────────────────────────────────────────
-    # Branch 2: NACHTLICHT
+    # Branch 2: BEWEGUNG-AUS (eigenständiger Aus-Trigger)
+    #
+    # FIX 2026.07.10: Ausschalten war bisher kein eigenständiger Trigger, sondern nur
+    # Teil der laufenden Regelschleife/Warte-Logik. In Kombination mit
+    # mode: restart konnte ein neuer Lauf (z.B. erneute Bewegung) den
+    # wartenden Lauf abbrechen; kippte dabei die Aktivierungsbedingung
+    # (z.B. Lux durch das eigene Lampenlicht über die Schwelle), nahm der
+    # neue Lauf den default-Zweig ohne Aktion → kein Durchlauf wartete mehr
+    # auf "Bewegung aus" → Lampen blieben dauerhaft an.
+    # Fix: eigener state-Trigger auf "Bewegung -> aus" (id: motion_off)
+    # garantiert unabhängig vom Zustand jedes anderen Durchlaufs einen
+    # Aus-Pfad. Bewegungs- und Bypass-Zustand werden hier erneut geprüft
+    # (Schutz gegen restart-Rennen); ist der Zusatz-Trigger (Branch 1)
+    # aktiv eingeschaltet, hat er Vorrang und dieser Zweig schaltet nicht aus.
+    # ──────────────────────────────────────────────────────────────────────────
+    - conditions:
+        - condition: trigger
+          id: "motion_off"
+      sequence:
+        - variables:
+            off_delay_minutes: >-
+              {{ night_time_delay | float if effective_mode == 'night_light'
+                 else time_delay | float }}
+        - delay:
+            minutes: "{{ off_delay_minutes }}"
+        - if:
+            - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count == 0 }}"
+            - "{{ bypass_switch | length == 0 or not is_state(bypass_switch, 'on') }}"
+            - "{{ include_switch_trigger == 'switch_disabled' or not is_state(switch_trigger_entity, 'on') }}"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_1 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp2_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_2 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp3_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_3 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp4_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_4 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp5_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_5 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Branch 3: NACHTLICHT
     # ──────────────────────────────────────────────────────────────────────────
     - conditions:
         - condition: trigger
@@ -2082,7 +2171,7 @@ action:
                 transition: "{{ light_transition_off | float }}"
 
     # ──────────────────────────────────────────────────────────────────────────
-    # Branch 3: AUS
+    # Branch 4: AUS
     # ──────────────────────────────────────────────────────────────────────────
     - conditions:
         - condition: trigger
@@ -2091,7 +2180,7 @@ action:
       sequence: []
 
     # ──────────────────────────────────────────────────────────────────────────
-    # Branch 4: AUFRÄUM-BRANCH (Waisenkinder-Schutz)
+    # Branch 5: AUFRÄUM-BRANCH (Waisenkinder-Schutz)
     #
     # FIX v5.2: lux_drop-Trigger kann mit mode:restart einen laufenden Nachlauf
     # abbrechen → Default überspringt → Lampen bleiben an.
@@ -2099,6 +2188,10 @@ action:
     # FIX v5.3: Bedingung prüft ob IRGENDEINE konfigurierte Lampe noch an ist,
     # nicht nur lamp1. Vorher: lamp1 bereits aus (Auto-Off / unterbrochener
     # Ausschalt-Zyklus) → lamp2-5 wurden nie ausgeschaltet.
+    #
+    # Seit 2026.07.10 übernimmt Branch 2 (BEWEGUNG-AUS) den regulären Ausschalt-Fall.
+    # Dieser Branch bleibt als zusätzliches Sicherheitsnetz für Randfälle
+    # (z.B. lux_drop-Trigger, Bypass-Wechsel) bestehen.
     # ──────────────────────────────────────────────────────────────────────────
     - conditions:
         - condition: not
@@ -2350,150 +2443,157 @@ action:
                                  if lamp5_active and is_state(light_entity_5, 'on') else 0 }}
                             lux_deviation: "{{ active_target_lux - current_lux_val }}"
 
-                        - choose:
-                            # Auto-Off: Lampe 1 am Minimum + immer noch zu hell
-                            - conditions:
-                                - "{{ lux_deviation < -lux_hysteresis }}"
-                                - "{{ auto_off_brightness | int > 0 }}"
-                                - "{{ current_bri_1 | round | int <= auto_off_brightness | int }}"
-                              sequence:
-                                - action: light.turn_off
-                                  target:
-                                    entity_id: "{{ light_entity_1 }}"
-                                  data:
-                                    transition: "{{ light_transition_off | float }}"
-                                - if:
-                                    - "{{ lamp2_active and is_state(light_entity_2, 'on') }}"
-                                  then:
+                        # FIX 2026.07.10: Bewegung wird hier erneut geprüft, direkt vor dem
+                        # Stellschritt. Ohne diesen Check konnte während der 3s
+                        # Mess-Verzögerung die Bewegung enden und der Stellschritt
+                        # (inkl. eines möglichen Wieder-Einschaltens) trotzdem feuern.
+                        - if:
+                            - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
+                          then:
+                            - choose:
+                                # Auto-Off: Lampe 1 am Minimum + immer noch zu hell
+                                - conditions:
+                                    - "{{ lux_deviation < -lux_hysteresis }}"
+                                    - "{{ auto_off_brightness | int > 0 }}"
+                                    - "{{ current_bri_1 | round | int <= auto_off_brightness | int }}"
+                                  sequence:
                                     - action: light.turn_off
                                       target:
-                                        entity_id: "{{ light_entity_2 }}"
+                                        entity_id: "{{ light_entity_1 }}"
                                       data:
                                         transition: "{{ light_transition_off | float }}"
-                                - if:
-                                    - "{{ lamp3_active and is_state(light_entity_3, 'on') }}"
-                                  then:
-                                    - action: light.turn_off
-                                      target:
-                                        entity_id: "{{ light_entity_3 }}"
-                                      data:
-                                        transition: "{{ light_transition_off | float }}"
-                                - if:
-                                    - "{{ lamp4_active and is_state(light_entity_4, 'on') }}"
-                                  then:
-                                    - action: light.turn_off
-                                      target:
-                                        entity_id: "{{ light_entity_4 }}"
-                                      data:
-                                        transition: "{{ light_transition_off | float }}"
-                                - if:
-                                    - "{{ lamp5_active and is_state(light_entity_5, 'on') }}"
-                                  then:
-                                    - action: light.turn_off
-                                      target:
-                                        entity_id: "{{ light_entity_5 }}"
-                                      data:
-                                        transition: "{{ light_transition_off | float }}"
-                            # Zu dunkel → heller
-                            - conditions: ["{{ lux_deviation > lux_hysteresis }}"]
-                              sequence:
-                                - action: light.turn_on
-                                  target:
-                                    entity_id: "{{ light_entity_1 }}"
-                                  data:
-                                    brightness_pct: >
-                                      {{ [1, [100, (current_bri_1 + adjustment_step) | round | int] | min] | max }}
-                                    transition: "{{ light_transition | float }}"
-                                - if:
-                                    - "{{ lamp2_active and is_state(light_entity_2, 'on') }}"
-                                  then:
+                                    - if:
+                                        - "{{ lamp2_active and is_state(light_entity_2, 'on') }}"
+                                      then:
+                                        - action: light.turn_off
+                                          target:
+                                            entity_id: "{{ light_entity_2 }}"
+                                          data:
+                                            transition: "{{ light_transition_off | float }}"
+                                    - if:
+                                        - "{{ lamp3_active and is_state(light_entity_3, 'on') }}"
+                                      then:
+                                        - action: light.turn_off
+                                          target:
+                                            entity_id: "{{ light_entity_3 }}"
+                                          data:
+                                            transition: "{{ light_transition_off | float }}"
+                                    - if:
+                                        - "{{ lamp4_active and is_state(light_entity_4, 'on') }}"
+                                      then:
+                                        - action: light.turn_off
+                                          target:
+                                            entity_id: "{{ light_entity_4 }}"
+                                          data:
+                                            transition: "{{ light_transition_off | float }}"
+                                    - if:
+                                        - "{{ lamp5_active and is_state(light_entity_5, 'on') }}"
+                                      then:
+                                        - action: light.turn_off
+                                          target:
+                                            entity_id: "{{ light_entity_5 }}"
+                                          data:
+                                            transition: "{{ light_transition_off | float }}"
+                                # Zu dunkel → heller
+                                - conditions: ["{{ lux_deviation > lux_hysteresis }}"]
+                                  sequence:
                                     - action: light.turn_on
                                       target:
-                                        entity_id: "{{ light_entity_2 }}"
+                                        entity_id: "{{ light_entity_1 }}"
                                       data:
                                         brightness_pct: >
-                                          {{ [1, [100, (current_bri_2 + adjustment_step) | round | int] | min] | max }}
+                                          {{ [1, [100, (current_bri_1 + adjustment_step) | round | int] | min] | max }}
                                         transition: "{{ light_transition | float }}"
-                                - if:
-                                    - "{{ lamp3_active and is_state(light_entity_3, 'on') }}"
-                                  then:
+                                    - if:
+                                        - "{{ lamp2_active and is_state(light_entity_2, 'on') }}"
+                                      then:
+                                        - action: light.turn_on
+                                          target:
+                                            entity_id: "{{ light_entity_2 }}"
+                                          data:
+                                            brightness_pct: >
+                                              {{ [1, [100, (current_bri_2 + adjustment_step) | round | int] | min] | max }}
+                                            transition: "{{ light_transition | float }}"
+                                    - if:
+                                        - "{{ lamp3_active and is_state(light_entity_3, 'on') }}"
+                                      then:
+                                        - action: light.turn_on
+                                          target:
+                                            entity_id: "{{ light_entity_3 }}"
+                                          data:
+                                            brightness_pct: >
+                                              {{ [1, [100, (current_bri_3 + adjustment_step) | round | int] | min] | max }}
+                                            transition: "{{ light_transition | float }}"
+                                    - if:
+                                        - "{{ lamp4_active and is_state(light_entity_4, 'on') }}"
+                                      then:
+                                        - action: light.turn_on
+                                          target:
+                                            entity_id: "{{ light_entity_4 }}"
+                                          data:
+                                            brightness_pct: >
+                                              {{ [1, [100, (current_bri_4 + adjustment_step) | round | int] | min] | max }}
+                                            transition: "{{ light_transition | float }}"
+                                    - if:
+                                        - "{{ lamp5_active and is_state(light_entity_5, 'on') }}"
+                                      then:
+                                        - action: light.turn_on
+                                          target:
+                                            entity_id: "{{ light_entity_5 }}"
+                                          data:
+                                            brightness_pct: >
+                                              {{ [1, [100, (current_bri_5 + adjustment_step) | round | int] | min] | max }}
+                                            transition: "{{ light_transition | float }}"
+                                # Zu hell → dunkler
+                                - conditions: ["{{ lux_deviation < -lux_hysteresis }}"]
+                                  sequence:
                                     - action: light.turn_on
                                       target:
-                                        entity_id: "{{ light_entity_3 }}"
+                                        entity_id: "{{ light_entity_1 }}"
                                       data:
                                         brightness_pct: >
-                                          {{ [1, [100, (current_bri_3 + adjustment_step) | round | int] | min] | max }}
+                                          {{ [1, [100, (current_bri_1 - adjustment_step) | round | int] | min] | max }}
                                         transition: "{{ light_transition | float }}"
-                                - if:
-                                    - "{{ lamp4_active and is_state(light_entity_4, 'on') }}"
-                                  then:
-                                    - action: light.turn_on
-                                      target:
-                                        entity_id: "{{ light_entity_4 }}"
-                                      data:
-                                        brightness_pct: >
-                                          {{ [1, [100, (current_bri_4 + adjustment_step) | round | int] | min] | max }}
-                                        transition: "{{ light_transition | float }}"
-                                - if:
-                                    - "{{ lamp5_active and is_state(light_entity_5, 'on') }}"
-                                  then:
-                                    - action: light.turn_on
-                                      target:
-                                        entity_id: "{{ light_entity_5 }}"
-                                      data:
-                                        brightness_pct: >
-                                          {{ [1, [100, (current_bri_5 + adjustment_step) | round | int] | min] | max }}
-                                        transition: "{{ light_transition | float }}"
-                            # Zu hell → dunkler
-                            - conditions: ["{{ lux_deviation < -lux_hysteresis }}"]
-                              sequence:
-                                - action: light.turn_on
-                                  target:
-                                    entity_id: "{{ light_entity_1 }}"
-                                  data:
-                                    brightness_pct: >
-                                      {{ [1, [100, (current_bri_1 - adjustment_step) | round | int] | min] | max }}
-                                    transition: "{{ light_transition | float }}"
-                                - if:
-                                    - "{{ lamp2_active and is_state(light_entity_2, 'on') }}"
-                                  then:
-                                    - action: light.turn_on
-                                      target:
-                                        entity_id: "{{ light_entity_2 }}"
-                                      data:
-                                        brightness_pct: >
-                                          {{ [1, [100, (current_bri_2 - adjustment_step) | round | int] | min] | max }}
-                                        transition: "{{ light_transition | float }}"
-                                - if:
-                                    - "{{ lamp3_active and is_state(light_entity_3, 'on') }}"
-                                  then:
-                                    - action: light.turn_on
-                                      target:
-                                        entity_id: "{{ light_entity_3 }}"
-                                      data:
-                                        brightness_pct: >
-                                          {{ [1, [100, (current_bri_3 - adjustment_step) | round | int] | min] | max }}
-                                        transition: "{{ light_transition | float }}"
-                                - if:
-                                    - "{{ lamp4_active and is_state(light_entity_4, 'on') }}"
-                                  then:
-                                    - action: light.turn_on
-                                      target:
-                                        entity_id: "{{ light_entity_4 }}"
-                                      data:
-                                        brightness_pct: >
-                                          {{ [1, [100, (current_bri_4 - adjustment_step) | round | int] | min] | max }}
-                                        transition: "{{ light_transition | float }}"
-                                - if:
-                                    - "{{ lamp5_active and is_state(light_entity_5, 'on') }}"
-                                  then:
-                                    - action: light.turn_on
-                                      target:
-                                        entity_id: "{{ light_entity_5 }}"
-                                      data:
-                                        brightness_pct: >
-                                          {{ [1, [100, (current_bri_5 - adjustment_step) | round | int] | min] | max }}
-                                        transition: "{{ light_transition | float }}"
+                                    - if:
+                                        - "{{ lamp2_active and is_state(light_entity_2, 'on') }}"
+                                      then:
+                                        - action: light.turn_on
+                                          target:
+                                            entity_id: "{{ light_entity_2 }}"
+                                          data:
+                                            brightness_pct: >
+                                              {{ [1, [100, (current_bri_2 - adjustment_step) | round | int] | min] | max }}
+                                            transition: "{{ light_transition | float }}"
+                                    - if:
+                                        - "{{ lamp3_active and is_state(light_entity_3, 'on') }}"
+                                      then:
+                                        - action: light.turn_on
+                                          target:
+                                            entity_id: "{{ light_entity_3 }}"
+                                          data:
+                                            brightness_pct: >
+                                              {{ [1, [100, (current_bri_3 - adjustment_step) | round | int] | min] | max }}
+                                            transition: "{{ light_transition | float }}"
+                                    - if:
+                                        - "{{ lamp4_active and is_state(light_entity_4, 'on') }}"
+                                      then:
+                                        - action: light.turn_on
+                                          target:
+                                            entity_id: "{{ light_entity_4 }}"
+                                          data:
+                                            brightness_pct: >
+                                              {{ [1, [100, (current_bri_4 - adjustment_step) | round | int] | min] | max }}
+                                            transition: "{{ light_transition | float }}"
+                                    - if:
+                                        - "{{ lamp5_active and is_state(light_entity_5, 'on') }}"
+                                      then:
+                                        - action: light.turn_on
+                                          target:
+                                            entity_id: "{{ light_entity_5 }}"
+                                          data:
+                                            brightness_pct: >
+                                              {{ [1, [100, (current_bri_5 - adjustment_step) | round | int] | min] | max }}
+                                            transition: "{{ light_transition | float }}"
 
           # ── Konstant-Modus: Warten ────────────────────────────────────────
           - if:
