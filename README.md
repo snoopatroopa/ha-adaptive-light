@@ -3,7 +3,7 @@
 **Home Assistant Blueprint** für bewegungsgesteuerte, lux-geregelte Beleuchtung.
 
 [![HA Blueprint](https://img.shields.io/badge/Home%20Assistant-Blueprint-blue?logo=home-assistant)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/Version-2026.07.10-green)]()
+[![Version](https://img.shields.io/badge/Version-2026.07.13-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -82,6 +82,17 @@ Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop)
 ---
 
 ## Changelog
+
+### 2026.07.13
+- **Bugfix:** Nachtlicht-Branch sendete Helligkeit und Farbe in zwei separaten
+  `light.turn_on`-Aufrufen (zuerst `brightness_pct` + `transition`, dann 2 ms
+  später `rgb_color` / `color_temp_kelvin`). Lampen die sowohl `color_temp` als
+  auch `rgb` unterstützen (RGBCCT), starteten beim ersten Aufruf eine Transition
+  mit der zuletzt verwendeten Farbtemperatur und ignorierten den nachfolgenden
+  Farb-Befehl, der mitten in die laufende Transition ankam – die konfigurierte
+  Nachtlicht-RGB-Farbe wurde nicht übernommen.
+  Fix: Helligkeit, Transition und Farbe werden jetzt in einem einzigen
+  `turn_on`-Aufruf pro Lampe übergeben.
 
 ### 2026.07.10
 - **Bugfix:** Ausschalten der Lampen war bisher kein eigenständiger Trigger,
