@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 2026.07.13**
+    **Version: 2026.07.20**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -78,6 +78,22 @@ blueprint:
 
     <details>
     <summary><b>Changelog:</b> 👈</summary>
+
+    **2026.07.20** – Bugfix: Der 2026.07.13-Fix (Helligkeit/Transition/Farbe
+    in einem einzigen `turn_on`-Aufruf) wurde nur im Nachtlicht-Branch
+    angewendet. Der `default`-Zweig (Lux-Regelung & Konstant) hatte den
+    identischen Zwei-Aufruf-Fehler beim initialen Einschalten weiterhin:
+    zuerst `light.turn_on` mit `brightness_pct` + `transition`, eine
+    Millisekunde später ein zweiter `light.turn_on` mit `rgb_color` bzw.
+    `color_temp_kelvin`. Bei RGBCCT-Lampen (color_temp + rgb) startete der
+    erste Aufruf die Transition mit der zuletzt aktiven Farbe/Farbtemperatur;
+    der zweite Aufruf kam teils mitten in diese laufende Transition und wurde
+    ignoriert – die konfigurierte Hauptfarbe wurde nicht (oder nur kurzzeitig)
+    übernommen. Reproduziert per Trace auf `automation.lichtsteuerung_bad_og_bei_bewegung`
+    (Lampe `light.spiegellampe_cob_strip`, RGBCCT): `brightness_pct`+`transition`
+    und `rgb_color: [255, 195, 50]` liefen 1,2 ms auseinander in zwei Aufrufen.
+    Fix: Alle 5 Lampen im `default`-Zweig senden Helligkeit, Transition und
+    Farbe jetzt ebenfalls in einem einzigen `turn_on`-Aufruf (analog Nachtlicht).
 
     **2026.07.13** – Bugfix: Nachtlicht-Branch sendete Helligkeit und Farbe
     in zwei separaten `light.turn_on`-Aufrufen (zuerst `brightness_pct` +
@@ -2320,12 +2336,6 @@ action:
               on_bri_5: >-
                 {{ lamp5_constant_bri | int if effective_mode == 'constant' else init_bri_5 | int }}
 
-          - action: light.turn_on
-            target:
-              entity_id: "{{ light_entity_1 }}"
-            data:
-              brightness_pct: "{{ on_bri_1 }}"
-              transition: "{{ light_transition | float }}"
           - choose:
               - conditions: ["{{ lamp1_use_rgb }}"]
                 sequence:
@@ -2333,6 +2343,8 @@ action:
                     target:
                       entity_id: "{{ light_entity_1 }}"
                     data:
+                      brightness_pct: "{{ on_bri_1 }}"
+                      transition: "{{ light_transition | float }}"
                       rgb_color: "{{ lamp1_rgb_color }}"
               - conditions: ["{{ lamp1_use_color_temp }}"]
                 sequence:
@@ -2340,16 +2352,19 @@ action:
                     target:
                       entity_id: "{{ light_entity_1 }}"
                     data:
+                      brightness_pct: "{{ on_bri_1 }}"
+                      transition: "{{ light_transition | float }}"
                       color_temp_kelvin: "{{ lamp1_color_temp_kelvin | int }}"
+            default:
+              - action: light.turn_on
+                target:
+                  entity_id: "{{ light_entity_1 }}"
+                data:
+                  brightness_pct: "{{ on_bri_1 }}"
+                  transition: "{{ light_transition | float }}"
           - if:
               - "{{ lamp2_active }}"
             then:
-              - action: light.turn_on
-                target:
-                  entity_id: "{{ light_entity_2 }}"
-                data:
-                  brightness_pct: "{{ on_bri_2 }}"
-                  transition: "{{ light_transition | float }}"
               - choose:
                   - conditions: ["{{ lamp2_use_rgb }}"]
                     sequence:
@@ -2357,6 +2372,8 @@ action:
                         target:
                           entity_id: "{{ light_entity_2 }}"
                         data:
+                          brightness_pct: "{{ on_bri_2 }}"
+                          transition: "{{ light_transition | float }}"
                           rgb_color: "{{ lamp2_rgb_color }}"
                   - conditions: ["{{ lamp2_use_color_temp }}"]
                     sequence:
@@ -2364,16 +2381,19 @@ action:
                         target:
                           entity_id: "{{ light_entity_2 }}"
                         data:
+                          brightness_pct: "{{ on_bri_2 }}"
+                          transition: "{{ light_transition | float }}"
                           color_temp_kelvin: "{{ lamp2_color_temp_kelvin | int }}"
+                default:
+                  - action: light.turn_on
+                    target:
+                      entity_id: "{{ light_entity_2 }}"
+                    data:
+                      brightness_pct: "{{ on_bri_2 }}"
+                      transition: "{{ light_transition | float }}"
           - if:
               - "{{ lamp3_active }}"
             then:
-              - action: light.turn_on
-                target:
-                  entity_id: "{{ light_entity_3 }}"
-                data:
-                  brightness_pct: "{{ on_bri_3 }}"
-                  transition: "{{ light_transition | float }}"
               - choose:
                   - conditions: ["{{ lamp3_use_rgb }}"]
                     sequence:
@@ -2381,6 +2401,8 @@ action:
                         target:
                           entity_id: "{{ light_entity_3 }}"
                         data:
+                          brightness_pct: "{{ on_bri_3 }}"
+                          transition: "{{ light_transition | float }}"
                           rgb_color: "{{ lamp3_rgb_color }}"
                   - conditions: ["{{ lamp3_use_color_temp }}"]
                     sequence:
@@ -2388,16 +2410,19 @@ action:
                         target:
                           entity_id: "{{ light_entity_3 }}"
                         data:
+                          brightness_pct: "{{ on_bri_3 }}"
+                          transition: "{{ light_transition | float }}"
                           color_temp_kelvin: "{{ lamp3_color_temp_kelvin | int }}"
+                default:
+                  - action: light.turn_on
+                    target:
+                      entity_id: "{{ light_entity_3 }}"
+                    data:
+                      brightness_pct: "{{ on_bri_3 }}"
+                      transition: "{{ light_transition | float }}"
           - if:
               - "{{ lamp4_active }}"
             then:
-              - action: light.turn_on
-                target:
-                  entity_id: "{{ light_entity_4 }}"
-                data:
-                  brightness_pct: "{{ on_bri_4 }}"
-                  transition: "{{ light_transition | float }}"
               - choose:
                   - conditions: ["{{ lamp4_use_rgb }}"]
                     sequence:
@@ -2405,6 +2430,8 @@ action:
                         target:
                           entity_id: "{{ light_entity_4 }}"
                         data:
+                          brightness_pct: "{{ on_bri_4 }}"
+                          transition: "{{ light_transition | float }}"
                           rgb_color: "{{ lamp4_rgb_color }}"
                   - conditions: ["{{ lamp4_use_color_temp }}"]
                     sequence:
@@ -2412,16 +2439,19 @@ action:
                         target:
                           entity_id: "{{ light_entity_4 }}"
                         data:
+                          brightness_pct: "{{ on_bri_4 }}"
+                          transition: "{{ light_transition | float }}"
                           color_temp_kelvin: "{{ lamp4_color_temp_kelvin | int }}"
+                default:
+                  - action: light.turn_on
+                    target:
+                      entity_id: "{{ light_entity_4 }}"
+                    data:
+                      brightness_pct: "{{ on_bri_4 }}"
+                      transition: "{{ light_transition | float }}"
           - if:
               - "{{ lamp5_active }}"
             then:
-              - action: light.turn_on
-                target:
-                  entity_id: "{{ light_entity_5 }}"
-                data:
-                  brightness_pct: "{{ on_bri_5 }}"
-                  transition: "{{ light_transition | float }}"
               - choose:
                   - conditions: ["{{ lamp5_use_rgb }}"]
                     sequence:
@@ -2429,6 +2459,8 @@ action:
                         target:
                           entity_id: "{{ light_entity_5 }}"
                         data:
+                          brightness_pct: "{{ on_bri_5 }}"
+                          transition: "{{ light_transition | float }}"
                           rgb_color: "{{ lamp5_rgb_color }}"
                   - conditions: ["{{ lamp5_use_color_temp }}"]
                     sequence:
@@ -2436,7 +2468,16 @@ action:
                         target:
                           entity_id: "{{ light_entity_5 }}"
                         data:
+                          brightness_pct: "{{ on_bri_5 }}"
+                          transition: "{{ light_transition | float }}"
                           color_temp_kelvin: "{{ lamp5_color_temp_kelvin | int }}"
+                default:
+                  - action: light.turn_on
+                    target:
+                      entity_id: "{{ light_entity_5 }}"
+                    data:
+                      brightness_pct: "{{ on_bri_5 }}"
+                      transition: "{{ light_transition | float }}"
 
           # ── Lux-Regelschleife ─────────────────────────────────────────────
           - if:
