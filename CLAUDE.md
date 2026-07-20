@@ -1,5 +1,8 @@
 # Projektkontext – HA Adaptive Light
 
+## Sprache
+- Immer auf Deutsch antworten (Chat-Antworten), unabhängig von der Sprache der Anfrage.
+
 ## Repo
 - GitHub: `snoopatroopa/ha-adaptive-light`
 - Blueprint-Datei: `sensor-light-lux.yaml`
