@@ -1,9 +1,12 @@
 # Projektkontext – HA Adaptive Light
 
+## Sprache
+- Immer auf Deutsch antworten (Chat-Antworten), unabhängig von der Sprache der Anfrage.
+
 ## Repo
 - GitHub: `snoopatroopa/ha-adaptive-light`
 - Blueprint-Datei: `sensor-light-lux.yaml`
-- Aktuelle Version: **2026.07.10** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
+- Aktuelle Version: **2026.07.21** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
 
 ---
 
@@ -21,7 +24,8 @@ Trigger: motion | motion_off | switch | lux_drop
     │     (Vorrang für Branch 1: schaltet nicht aus wenn Zusatz-Trigger aktiv an ist)
     │
     ├── Branch 3: NACHTLICHT (motion + effective_mode == 'night_light')
-    │     Aufräumen → Nachtlicht-Lampen an → Warten → Nachlauf → Ausschalten
+    │     Direkt-Einschalten auf Nachtwerte (kein Aus-vor-An mehr, seit
+    │     2026.07.21) → Warten → Nachlauf → Ausschalten
     │
     ├── Branch 4: AUS (motion + effective_mode == 'off')
     │     → nichts tun
@@ -96,6 +100,42 @@ Switch-Prüfung gegen restart-Rennen. Zusätzlich prüft die Lux-Regelschleife
 die Bewegung jetzt direkt vor jedem Stellschritt erneut (nicht mehr nur am
 Schleifenanfang), damit kein Stellschritt – inkl. eines möglichen
 Wieder-Einschaltens – kurz nach Bewegungsende mehr feuern kann.
+
+### 2026.07.13 – Zwei-Aufruf-Farbrace im Nachtlicht-Branch
+**Problem:** Helligkeit/Transition und Farbe wurden pro Lampe in zwei
+getrennten `light.turn_on`-Aufrufen gesendet. Bei RGBCCT-Lampen startete
+der erste Aufruf eine Transition mit der zuletzt aktiven Farbe, der ~2ms
+später folgende Farb-Aufruf kam mitten in die laufende Transition und
+wurde ignoriert.
+**Fix:** Helligkeit, Transition und Farbe in einem einzigen
+`turn_on`-Aufruf pro Lampe (nur im Nachtlicht-Branch umgesetzt).
+
+### 2026.07.20 – derselbe Zwei-Aufruf-Fehler im `default`-Zweig
+**Problem:** Der 2026.07.13-Fix wurde nur im Nachtlicht-Branch eingebaut.
+Der `default`-Zweig (Lux-Regelung & Konstant) hatte beim initialen
+Einschalten denselben Zwei-Aufruf-Fehler weiterhin – per Trace auf
+`automation.lichtsteuerung_bad_og_bei_bewegung` nachgewiesen (Aufrufe
+1,2ms auseinander).
+**Fix:** Alle 5 Lampen im `default`-Zweig senden jetzt ebenfalls
+Helligkeit, Transition und Farbe in einem Aufruf (analog Nachtlicht).
+
+### 2026.07.21 – Aus-vor-An-Umweg im Nachtlicht-Branch kollidiert mit trägen Geräten
+**Problem:** Der Nachtlicht-Branch schaltete beim Einschalten grundsätzlich
+zuerst alle Lampen aus, wartete `light_transition_off + 0.5s` und schaltete
+die aktiven Nachtlicht-Lampen danach separat wieder ein. Bei Geräten mit
+trägerer Aus-Rückmeldung (beobachtet: ~2,6s realer Latenz gegenüber 2,5s
+Wartezeit) traf die verspätete Aus-Bestätigung des Geräts nach dem neuen
+Nachtlicht-`turn_on` ein und überschrieb die gerade gesetzte Farbe – die
+Lampe meldete sich ~30s später selbständig mit undefiniertem Farbzustand
+zurück. Reproduziert auf `automation.lichtsteuerung_bad_og_bei_bewegung`
+(`light.spiegellampe_cob_strip`) per Logbuch (on → off nach 68ms → on nach
+30s ohne Automations-Kontext). Gleiche Fehlerklasse wie 2026.06.21/06.24,
+nur unterhalb der dortigen Toleranz.
+**Fix:** Lampen, die im Nachtlicht-Modus aktiv bleiben, werden direkt per
+einzelnem `turn_on` auf die Nachtwerte gesetzt – kein Aus-vor-An-Umweg,
+keine Wartezeit mehr an Geräte-Latenz gekoppelt. Nur für das Nachtlicht
+deaktivierte oder nicht konfigurierte Lampen werden weiterhin per
+`turn_off` ausgeschaltet.
 
 ---
 

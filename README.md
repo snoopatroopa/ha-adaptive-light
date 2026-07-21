@@ -3,7 +3,7 @@
 **Home Assistant Blueprint** für bewegungsgesteuerte, lux-geregelte Beleuchtung.
 
 [![HA Blueprint](https://img.shields.io/badge/Home%20Assistant-Blueprint-blue?logo=home-assistant)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/Version-2026.07.13-green)]()
+[![Version](https://img.shields.io/badge/Version-2026.07.21-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -72,7 +72,7 @@ Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop)
     │
     ├── Branch 1: Zusatz-Trigger → Einschalten → Warten → Ausschalten
     ├── Branch 2: Bewegung-Aus  → Nachlauf → erneute Prüfung → Ausschalten
-    ├── Branch 3: Nachtlicht    → Einschalten → Warten → Nachlauf → Ausschalten
+    ├── Branch 3: Nachtlicht    → Direkt-Einschalten (Nachtwerte) → Warten → Nachlauf → Ausschalten
     ├── Branch 4: Aus-Modus     → nichts tun
     ├── Branch 5: Aufräum       → Nachlauf nachholen → Ausschalten (Waisenkinder-Schutz)
     └── Default:  Lux / Konstant
@@ -82,6 +82,34 @@ Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop)
 ---
 
 ## Changelog
+
+### 2026.07.21
+- **Bugfix:** Nachtlicht-Branch schaltete beim Einschalten grundsätzlich
+  zuerst alle Lampen aus, wartete pauschal `light_transition_off + 0.5s` und
+  schaltete die Nachtlicht-Lampen danach separat wieder ein. Bei Geräten mit
+  trägerer Aus-Rückmeldung (beobachtet: ~2,6s realer Latenz gegenüber 2,5s
+  Wartezeit) traf die verspätete Aus-Bestätigung erst nach dem neuen
+  Nachtlicht-`turn_on` ein und überschrieb die gerade gesetzte Farbe.
+  Reproduziert auf `automation.lichtsteuerung_bad_og_bei_bewegung`
+  (`light.spiegellampe_cob_strip`) per Logbuch: on → off nach 68ms → on
+  nach 30s (letzteres ohne Automations-Kontext).
+  Fix: Lampen, die im Nachtlicht-Modus aktiv bleiben, werden direkt per
+  einzelnem `turn_on` auf die Nachtlicht-Werte gesetzt (kein
+  Ausschalten-vor-Einschalten-Umweg mehr, keine Wartezeit an
+  Geräte-Latenz gekoppelt). Nur für das Nachtlicht deaktivierte oder nicht
+  konfigurierte Lampen werden weiterhin ausgeschaltet.
+
+### 2026.07.20
+- **Bugfix:** Der 2026.07.13-Fix (Helligkeit/Transition/Farbe in einem
+  einzigen `turn_on`-Aufruf) war nur im Nachtlicht-Branch umgesetzt. Der
+  `default`-Zweig (Lux-Regelung & Konstant) hatte beim initialen Einschalten
+  weiterhin zwei separate `light.turn_on`-Aufrufe (zuerst `brightness_pct` +
+  `transition`, ~1 ms später `rgb_color` / `color_temp_kelvin`). Bei
+  RGBCCT-Lampen konnte der zweite Aufruf mitten in die vom ersten Aufruf
+  gestartete Transition fallen und wurde ignoriert – die Hauptfarbe wurde
+  nicht übernommen. Per Automations-Trace auf Südendamm50 reproduziert.
+  Fix: alle 5 Lampen im `default`-Zweig senden jetzt ebenfalls Helligkeit,
+  Transition und Farbe in einem einzigen Aufruf.
 
 ### 2026.07.13
 - **Bugfix:** Nachtlicht-Branch sendete Helligkeit und Farbe in zwei separaten
