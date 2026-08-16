@@ -1440,6 +1440,13 @@ blueprint:
       input:
         bypass_switch:
           name: Bypass – Schalter (Optional)
+          description: >-
+            Optionaler input_boolean-Schalter zum manuellen Offenhalten des Lichts.
+            Ist er an, wird das automatische Ausschalten unterdrückt (nach Bewegung-Ende,
+            im Aufräum-Branch und nach der Nachlaufzeit) und die Lux-/Konstant-Regelschleife
+            läuft weiter, auch ohne aktuelle Bewegung. Löst selbst kein Einschalten aus und
+            wirkt nur, solange die Automation bereits durch Bewegung, Schalter oder
+            Lux-Abfall läuft.
           default: []
           selector:
             entity:
