@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 2026.07.21**
+    **Version: 2026.08.16**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -78,6 +78,18 @@ blueprint:
 
     <details>
     <summary><b>Changelog:</b> 👈</summary>
+
+    **2026.08.16** – Neues Feature: Modus-Override. Optionaler
+    `input_boolean`-Schalter, der einen aktuell aktiven Zeitraum mit Modus
+    "⛔ Aus" übersteuert – ist der Schalter an, läuft bei Bewegung
+    stattdessen ein frei wählbarer Modus (Lux-Regelung oder Konstante
+    Helligkeit), z.B. um die Lux-Regelung außerhalb der sonst konfigurierten
+    Zeiten einmalig zu aktivieren. Greift nur wenn der aktuelle Zeitraum auf
+    "Aus" steht (Zeiträume mit Lux/Konstant bleiben unverändert) und niemals
+    wenn der aktuelle Zeitraum Nachtlicht ist – Nachtlicht behält immer
+    Vorrang. Unabhängig vom bestehenden Bypass-Schalter (der weiterhin nur
+    das automatische Ausschalten unterdrückt) – beide lassen sich
+    kombinieren.
 
     **2026.07.21** – Bugfix: Nachtlicht-Branch schaltete beim Einschalten
     grundsätzlich zuerst **alle** Lampen aus (`light.turn_off` mit
@@ -1453,6 +1465,41 @@ blueprint:
               filter:
                 domain: input_boolean
 
+    # ═══════════════════════════════════════════════════════════════
+    mode_override_settings:
+      name: "🎛️ Modus-Override (Optional)"
+      icon: mdi:tune
+      collapsed: true
+      input:
+        mode_override_switch:
+          name: Modus-Override – Schalter (Optional)
+          description: >-
+            Optionaler input_boolean-Schalter, der einen aktiven Zeitraum mit Modus
+            "⛔ Aus" übersteuert. Ist er an UND der aktuelle Zeitraum steht auf "Aus",
+            läuft bei Bewegung stattdessen der unten gewählte Modus (Lux-Regelung oder
+            Konstante Helligkeit) – z.B. um die Lux-Regelung außerhalb der sonst
+            konfigurierten Zeiten einmalig zu aktivieren. Steht der aktuelle Zeitraum
+            bereits auf Lux/Konstant, ändert dieser Schalter nichts. Nachtlicht hat immer
+            Vorrang und wird durch diesen Schalter nicht überschrieben.
+          default: []
+          selector:
+            entity:
+              filter:
+                domain: input_boolean
+        mode_override_mode:
+          name: Modus-Override – Ziel-Modus
+          description: >-
+            Modus, der aktiviert wird, wenn der Modus-Override-Schalter an ist und der
+            aktuelle Zeitraum auf "Aus" steht.
+          default: "lux"
+          selector:
+            select:
+              options:
+                - label: "🔆 Lux-Regelung"
+                  value: "lux"
+                - label: "💡 Konstante Helligkeit"
+                  value: "constant"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 mode: restart
 max_exceeded: silent
@@ -1594,6 +1641,8 @@ variables:
   switch_trigger_entity: !input switch_trigger_entity
   switch_off_mode: !input switch_off_mode
   bypass_switch: !input bypass_switch
+  mode_override_switch: !input mode_override_switch
+  mode_override_mode: !input mode_override_mode
 
   active_mode: >-
     {% set ns = namespace(result=period_1_mode) %}
@@ -1618,6 +1667,8 @@ variables:
   effective_mode: >-
     {% if active_mode == 'night_light' and include_night_light == 'night_light_disabled' %}
       off
+    {% elif active_mode == 'off' and mode_override_switch | length > 0 and is_state(mode_override_switch, 'on') %}
+      {{ mode_override_mode }}
     {% else %}
       {{ active_mode }}
     {% endif %}

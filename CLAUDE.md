@@ -6,7 +6,7 @@
 ## Repo
 - GitHub: `snoopatroopa/ha-adaptive-light`
 - Blueprint-Datei: `sensor-light-lux.yaml`
-- Aktuelle Version: **2026.07.21** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
+- Aktuelle Version: **2026.08.16** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
 
 ---
 
@@ -37,7 +37,9 @@ Trigger: motion | motion_off | switch | lux_drop
     │     → Nachlauf nachholen → doppelt prüfen → Ausschalten
     │
     └── Default: LUX-REGELUNG oder KONSTANT
-          Aktivierungs-Check → Einschalten per Lichtkurve →
+          effective_mode (= active_mode, außer Nachtlicht-Disable-Fallback
+          ODER Modus-Override bei aktivem Zeitraum "Aus", seit 2026.08.16)
+          → Aktivierungs-Check → Einschalten per Lichtkurve →
           Lux-Regelschleife (while Präsenz, Bewegung vor jedem Stellschritt
           erneut geprüft) → Nachlauf → Bypass-Guard → Ausschalten
 ```
@@ -54,6 +56,7 @@ Trigger: motion | motion_off | switch | lux_drop
 | Auto-Off | Nur wenn lamp1 ≤ auto_off_brightness UND zu hell → alle Lampen aus |
 | Farben | RGB überschreibt Farbtemperatur; Nachtlicht-Farbe unabhängig von Hauptfarbe |
 | `lamp2_active` | `{{ light_entity_2 | length > 0 }}` – prüft ob Entität konfiguriert |
+| Modus-Override | Eigenständiger optionaler Schalter (`mode_override_switch` + `mode_override_mode`), unabhängig vom bestehenden Bypass. Greift nur wenn `active_mode == 'off'` – überschreibt keine bereits konfigurierten Lux/Konstant-Zeiträume und niemals Nachtlicht (Priorität bleibt Zusatz-Trigger > Nachtlicht > Override > Zeitraum-Modus) |
 
 ---
 
@@ -149,6 +152,8 @@ init_bri_1..5:    # Aktuelle Helligkeit wenn an, sonst curve_brightness
 lux_deviation:    # target_lux - current_lux_val (positiv = zu dunkel)
 off_delay_minutes: # Branch 2 (BEWEGUNG-AUS): night_time_delay falls
                   # effective_mode == 'night_light', sonst time_delay
+mode_override_switch: # !input, optionaler input_boolean für Modus-Override
+mode_override_mode:   # !input, 'lux' | 'constant' – Ziel-Modus des Overrides
 ```
 
 ---
@@ -182,6 +187,24 @@ with open('sensor-light-lux.yaml') as f:
 ---
 
 ## Changelog
+
+### 2026.08.16 – Neues Feature: Modus-Override
+**Änderung:** Neuer optionaler Input-Bereich `mode_override_settings` mit
+`mode_override_switch` (input_boolean) und `mode_override_mode` (Select:
+`lux`/`constant`). In `effective_mode` als zusätzlicher `elif`-Zweig
+zwischen dem Nachtlicht-Disable-Fallback und dem regulären `active_mode`
+eingehängt: Ist `active_mode == 'off'` UND der Override-Schalter an, wird
+`mode_override_mode` statt `off` verwendet. Alle nachgelagerten Branches
+(3–5, Default) lesen weiterhin nur `effective_mode` und mussten nicht
+angepasst werden.
+**Grund:** Nutzer wollte die Lux-/Konstant-Regelung auch außerhalb der
+konfigurierten Zeiträume (Zeitraum-Modus "Aus") manuell aktivieren können,
+ohne Zeiträume selbst umzustellen. Nachtlicht behält bewusst Vorrang
+(Override greift nur bei `active_mode == 'off'`, nie bei `'night_light'`);
+bereits auf Lux/Konstant stehende Zeiträume bleiben unverändert. Bewusst
+unabhängig vom bestehenden `bypass_switch` (verhindert nur automatisches
+Ausschalten) gehalten – beide Schalter sind kombinierbar, aber lösen
+unterschiedliche Probleme.
 
 ### 2026.07.10 – Eigenständiger Aus-Trigger (Branch 2: BEWEGUNG-AUS)
 **Änderung:** Neuer `state`-Trigger `motion → off` (`id: motion_off`) plus

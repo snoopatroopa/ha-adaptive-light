@@ -3,7 +3,7 @@
 **Home Assistant Blueprint** für bewegungsgesteuerte, lux-geregelte Beleuchtung.
 
 [![HA Blueprint](https://img.shields.io/badge/Home%20Assistant-Blueprint-blue?logo=home-assistant)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/Version-2026.07.21-green)]()
+[![Version](https://img.shields.io/badge/Version-2026.08.16-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -75,13 +75,25 @@ Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop)
     ├── Branch 3: Nachtlicht    → Direkt-Einschalten (Nachtwerte) → Warten → Nachlauf → Ausschalten
     ├── Branch 4: Aus-Modus     → nichts tun
     ├── Branch 5: Aufräum       → Nachlauf nachholen → Ausschalten (Waisenkinder-Schutz)
-    └── Default:  Lux / Konstant
+    └── Default:  Lux / Konstant (Zeitraum "Aus" per Modus-Override umschaltbar)
                     → Einschalten → Regelschleife → Nachlauf → Ausschalten
 ```
 
 ---
 
 ## Changelog
+
+### 2026.08.16
+- **Neues Feature: Modus-Override.** Optionaler `input_boolean`-Schalter
+  (`mode_override_switch`) plus Ziel-Modus-Auswahl (`mode_override_mode`:
+  Lux-Regelung oder Konstante Helligkeit). Steht der aktuell aktive
+  Zeitraum auf "⛔ Aus" und der Schalter ist an, läuft bei Bewegung
+  stattdessen der gewählte Modus – z.B. um die Lux-Regelung außerhalb der
+  sonst konfigurierten Zeiten einmalig zu aktivieren. Zeiträume, die
+  bereits auf Lux/Konstant stehen, bleiben unverändert; Nachtlicht behält
+  immer Vorrang und wird nie überschrieben. Unabhängig vom bestehenden
+  Bypass-Schalter nutzbar (der weiterhin nur das automatische Ausschalten
+  unterdrückt) – beide lassen sich kombinieren.
 
 ### 2026.07.21
 - **Bugfix:** Nachtlicht-Branch schaltete beim Einschalten grundsätzlich
