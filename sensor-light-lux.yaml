@@ -80,7 +80,7 @@ blueprint:
     <summary><b>Changelog:</b> 👈</summary>
 
     **2026.08.16** – Neues Feature: Modus-Override. Optionaler
-    `input_boolean`-Schalter, der einen aktuell aktiven Zeitraum mit Modus
+    `input_boolean`- oder `binary_sensor`-Schalter, der einen aktuell aktiven Zeitraum mit Modus
     "⛔ Aus" übersteuert – ist der Schalter an, läuft bei Bewegung
     stattdessen ein frei wählbarer Modus (Lux-Regelung oder Konstante
     Helligkeit), z.B. um die Lux-Regelung außerhalb der sonst konfigurierten
@@ -1474,18 +1474,21 @@ blueprint:
         mode_override_switch:
           name: Modus-Override – Schalter (Optional)
           description: >-
-            Optionaler input_boolean-Schalter, der einen aktiven Zeitraum mit Modus
-            "⛔ Aus" übersteuert. Ist er an UND der aktuelle Zeitraum steht auf "Aus",
-            läuft bei Bewegung stattdessen der unten gewählte Modus (Lux-Regelung oder
-            Konstante Helligkeit) – z.B. um die Lux-Regelung außerhalb der sonst
-            konfigurierten Zeiten einmalig zu aktivieren. Steht der aktuelle Zeitraum
-            bereits auf Lux/Konstant, ändert dieser Schalter nichts. Nachtlicht hat immer
-            Vorrang und wird durch diesen Schalter nicht überschrieben.
+            Optionaler input_boolean- oder binary_sensor-Schalter, der einen aktiven
+            Zeitraum mit Modus "⛔ Aus" übersteuert. Ist er an UND der aktuelle Zeitraum
+            steht auf "Aus", läuft bei Bewegung stattdessen der unten gewählte Modus
+            (Lux-Regelung oder Konstante Helligkeit) – z.B. um die Lux-Regelung außerhalb
+            der sonst konfigurierten Zeiten einmalig zu aktivieren. Steht der aktuelle
+            Zeitraum bereits auf Lux/Konstant, ändert dieser Schalter nichts. Nachtlicht
+            hat immer Vorrang und wird durch diesen Schalter nicht überschrieben. Es wird
+            nur der Zustand gelesen (kein Service-Aufruf) – ein binary_sensor eignet sich
+            daher genauso wie ein manuell schaltbarer input_boolean-Helfer.
           default: []
           selector:
             entity:
               filter:
-                domain: input_boolean
+                - domain: input_boolean
+                - domain: binary_sensor
         mode_override_mode:
           name: Modus-Override – Ziel-Modus
           description: >-

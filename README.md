@@ -84,7 +84,7 @@ Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop)
 ## Changelog
 
 ### 2026.08.16
-- **Neues Feature: Modus-Override.** Optionaler `input_boolean`-Schalter
+- **Neues Feature: Modus-Override.** Optionaler `input_boolean`- oder `binary_sensor`-Schalter
   (`mode_override_switch`) plus Ziel-Modus-Auswahl (`mode_override_mode`:
   Lux-Regelung oder Konstante Helligkeit). Steht der aktuell aktive
   Zeitraum auf "⛔ Aus" und der Schalter ist an, läuft bei Bewegung

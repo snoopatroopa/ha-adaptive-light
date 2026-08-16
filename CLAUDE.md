@@ -152,7 +152,7 @@ init_bri_1..5:    # Aktuelle Helligkeit wenn an, sonst curve_brightness
 lux_deviation:    # target_lux - current_lux_val (positiv = zu dunkel)
 off_delay_minutes: # Branch 2 (BEWEGUNG-AUS): night_time_delay falls
                   # effective_mode == 'night_light', sonst time_delay
-mode_override_switch: # !input, optionaler input_boolean für Modus-Override
+mode_override_switch: # !input, optionaler input_boolean/binary_sensor für Modus-Override
 mode_override_mode:   # !input, 'lux' | 'constant' – Ziel-Modus des Overrides
 ```
 
@@ -190,7 +190,7 @@ with open('sensor-light-lux.yaml') as f:
 
 ### 2026.08.16 – Neues Feature: Modus-Override
 **Änderung:** Neuer optionaler Input-Bereich `mode_override_settings` mit
-`mode_override_switch` (input_boolean) und `mode_override_mode` (Select:
+`mode_override_switch` (input_boolean oder binary_sensor) und `mode_override_mode` (Select:
 `lux`/`constant`). In `effective_mode` als zusätzlicher `elif`-Zweig
 zwischen dem Nachtlicht-Disable-Fallback und dem regulären `active_mode`
 eingehängt: Ist `active_mode == 'off'` UND der Override-Schalter an, wird
