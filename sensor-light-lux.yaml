@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 2026.08.16**
+    **Version: 2026.10.19**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -17,7 +17,7 @@ blueprint:
     <details>
     <summary><b>Betriebsmodi & Ablauf:</b> 👈</summary>
 
-    **Priorität:** Zusatz-Trigger > Nachtlicht > Lux-Regelung / Konstant / Aus
+    **Priorität:** Ruhemodus > Zusatz-Trigger > Nachtlicht > Lux-Regelung / Konstant / Aus
 
 
     - 🔆 **Lux-Regelung:** Bewegung → Lux-Check → Einschalten per Lichtkurve →
@@ -30,6 +30,9 @@ blueprint:
       kein Nachregeln → kurzer Nachlauf → Aus. Pro Lampe deaktivierbar.
 
     - ⛔ **Aus:** Keine Reaktion auf Bewegung.
+
+    - 😴 **Ruhemodus (optional):** Schalter an → Automation pausiert, Lampen aus
+      oder dauerhaft Nachtlicht. Schalter aus → bei Anwesenheit sofort aktueller Modus.
 
 
     **Farbpriorität (pro Modus):** RGB überschreibt Farbtemperatur wenn beide aktiviert sind.
@@ -78,6 +81,15 @@ blueprint:
 
     <details>
     <summary><b>Changelog:</b> 👈</summary>
+
+    **2026.10.19** – Neues Feature: Ruhemodus. Optionaler `input_boolean`- oder
+    `binary_sensor`-Schalter pausiert die Automation (Bewegung, Bewegungsende,
+    Zusatz-Trigger und Lux-Abfall werden ignoriert). Beim Einschalten wahlweise
+    alle Lampen aus oder dauerhaft Nachtlicht (mit den bestehenden
+    Nachtlicht-Einstellungen pro Lampe). Beim Ausschalten wird bei Anwesenheit
+    sofort der aktuell gültige Modus angewendet (Lux-Regelung startet dabei mit
+    der Lichtkurve statt mit der Nachtlicht-Helligkeit); ohne Anwesenheit gehen
+    noch leuchtende Lampen nach der Nachlaufzeit aus.
 
     **2026.08.16** – Neues Feature: Modus-Override. Optionaler
     `input_boolean`- oder `binary_sensor`-Schalter, der einen aktuell aktiven Zeitraum mit Modus
@@ -1503,6 +1515,44 @@ blueprint:
                 - label: "💡 Konstante Helligkeit"
                   value: "constant"
 
+    # ═══════════════════════════════════════════════════════════════
+    rest_mode_settings:
+      name: "😴 Ruhemodus (Optional)"
+      icon: mdi:sleep
+      collapsed: true
+      input:
+        rest_mode_switch:
+          name: Ruhemodus – Schalter (Optional)
+          description: >-
+            Optionaler input_boolean- oder binary_sensor-Schalter. Ist er an, ist die
+            Automation pausiert: Bewegung, Bewegungsende, Zusatz-Trigger und Lux-Abfall
+            werden ignoriert. Beim Einschalten des Schalters wird einmalig die unten
+            gewählte Aktion ausgeführt. Beim Ausschalten wird bei Anwesenheit sofort der
+            aktuell gültige Modus (Lux-Regelung / Konstant / Nachtlicht / Aus)
+            angewendet; ohne Anwesenheit gehen noch leuchtende Lampen nach der
+            Nachlaufzeit aus. Die Automation selbst bleibt dabei eingeschaltet (sie muss
+            das Ausschalten des Schalters ja noch mitbekommen).
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: input_boolean
+                - domain: binary_sensor
+        rest_mode_action:
+          name: Ruhemodus – Aktion beim Aktivieren
+          description: >-
+            "Nachtlicht" verwendet die Nachtlicht-Einstellungen der einzelnen Lampen
+            (Helligkeit, Farbe, "Nachtlicht deaktivieren") aus den Reitern "Licht #1–#5".
+            Die Lampen bleiben dann bis zum Ausschalten des Ruhemodus auf Nachtlicht.
+          default: "off"
+          selector:
+            select:
+              options:
+                - label: "⛔ Alle Lampen ausschalten"
+                  value: "off"
+                - label: "🌙 Nachtlicht dauerhaft einschalten"
+                  value: "night_light"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 mode: restart
 max_exceeded: silent
@@ -1646,6 +1696,9 @@ variables:
   bypass_switch: !input bypass_switch
   mode_override_switch: !input mode_override_switch
   mode_override_mode: !input mode_override_mode
+  rest_mode_switch: !input rest_mode_switch
+  rest_mode_action: !input rest_mode_action
+  rest_mode_active: "{{ rest_mode_switch | length > 0 and is_state(rest_mode_switch, 'on') }}"
 
   active_mode: >-
     {% set ns = namespace(result=period_1_mode) %}
@@ -1793,10 +1846,79 @@ trigger:
     for:
       seconds: !input lux_retrigger_delay
     id: "lux_drop"
+  - trigger: state
+    entity_id: !input rest_mode_switch
+    to: "on"
+    id: "rest_on"
+  - trigger: state
+    entity_id: !input rest_mode_switch
+    to: "off"
+    id: "rest_off"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 action:
   - choose:
+    # ──────────────────────────────────────────────────────────────────────────
+    # Branch 0: RUHEMODUS AKTIV
+    #
+    # Solange der Ruhemodus-Schalter an ist, werden alle übrigen Trigger
+    # ignoriert. Beim Trigger rest_on mit Aktion "Aus" werden hier alle Lampen
+    # ausgeschaltet; mode: restart bricht dabei jeden laufenden Durchlauf ab.
+    # rest_on mit Aktion "Nachtlicht" fällt bewusst durch zu Branch 3, damit die
+    # Nachtlicht-Einschaltlogik nicht dupliziert werden muss.
+    # ──────────────────────────────────────────────────────────────────────────
+    - conditions:
+        - "{{ rest_mode_active }}"
+        - condition: not
+          conditions:
+            - condition: and
+              conditions:
+                - condition: trigger
+                  id: "rest_on"
+                - "{{ rest_mode_action == 'night_light' }}"
+      sequence:
+        - if:
+            - condition: trigger
+              id: "rest_on"
+          then:
+            - action: light.turn_off
+              target:
+                entity_id: "{{ light_entity_1 }}"
+              data:
+                transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp2_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_2 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp3_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_3 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp4_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_4 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp5_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_5 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+
 
     # ──────────────────────────────────────────────────────────────────────────
     # Branch 1: ZUSATZ-TRIGGER
@@ -2067,11 +2189,31 @@ action:
 
     # ──────────────────────────────────────────────────────────────────────────
     # Branch 3: NACHTLICHT
+    #
+    # Einstieg über Bewegung (regulär), über rest_off bei Anwesenheit (Ruhemodus
+    # beendet, aktueller Modus ist Nachtlicht) oder über rest_on mit Aktion
+    # "Nachtlicht" (Lampen bleiben dann dauerhaft an – kein Warten/Ausschalten,
+    # das übernimmt später rest_off).
     # ──────────────────────────────────────────────────────────────────────────
     - conditions:
-        - condition: trigger
-          id: "motion"
-        - "{{ effective_mode == 'night_light' }}"
+        - condition: or
+          conditions:
+            - condition: and
+              conditions:
+                - condition: trigger
+                  id: "motion"
+                - "{{ effective_mode == 'night_light' }}"
+            - condition: and
+              conditions:
+                - condition: trigger
+                  id: "rest_off"
+                - "{{ effective_mode == 'night_light' }}"
+                - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
+            - condition: and
+              conditions:
+                - condition: trigger
+                  id: "rest_on"
+                - "{{ rest_mode_action == 'night_light' }}"
       sequence:
         - if:
             - "{{ not lamp1_night_disabled }}"
@@ -2261,52 +2403,58 @@ action:
                   data:
                     transition: "{{ light_transition_off | float }}"
 
-        - repeat:
-            while:
-              - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
-            sequence:
-              - delay:
-                  seconds: 10
-        - delay:
-            minutes: "{{ night_time_delay | float }}"
+        - if:
+            - condition: not
+              conditions:
+                - condition: trigger
+                  id: "rest_on"
+          then:
+            - repeat:
+                while:
+                  - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
+                sequence:
+                  - delay:
+                      seconds: 10
+            - delay:
+                minutes: "{{ night_time_delay | float }}"
 
-        - action: light.turn_off
-          target:
-            entity_id: "{{ light_entity_1 }}"
-          data:
-            transition: "{{ light_transition_off | float }}"
-        - if:
-            - "{{ lamp2_active }}"
-          then:
             - action: light.turn_off
               target:
-                entity_id: "{{ light_entity_2 }}"
+                entity_id: "{{ light_entity_1 }}"
               data:
                 transition: "{{ light_transition_off | float }}"
-        - if:
-            - "{{ lamp3_active }}"
-          then:
-            - action: light.turn_off
-              target:
-                entity_id: "{{ light_entity_3 }}"
-              data:
-                transition: "{{ light_transition_off | float }}"
-        - if:
-            - "{{ lamp4_active }}"
-          then:
-            - action: light.turn_off
-              target:
-                entity_id: "{{ light_entity_4 }}"
-              data:
-                transition: "{{ light_transition_off | float }}"
-        - if:
-            - "{{ lamp5_active }}"
-          then:
-            - action: light.turn_off
-              target:
-                entity_id: "{{ light_entity_5 }}"
-              data:
-                transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp2_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_2 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp3_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_3 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp4_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_4 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ lamp5_active }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ light_entity_5 }}"
+                  data:
+                    transition: "{{ light_transition_off | float }}"
 
     # ──────────────────────────────────────────────────────────────────────────
     # Branch 4: AUS
@@ -2401,27 +2549,45 @@ action:
       - if:
           - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
           - "{{ effective_mode in ['lux', 'constant'] }}"
+          # Bei rest_off zählt eine noch leuchtende Lampe 1 nicht als "bereits an" –
+          # sie kann aus dem Ruhemodus-Nachtlicht stammen; dann gilt der echte Lux-Check.
           - condition: or
             conditions:
               - "{{ effective_mode == 'constant' }}"
-              - condition: state
-                entity_id: !input light_entity_1
-                state: "on"
+              - condition: and
+                conditions:
+                  - condition: not
+                    conditions:
+                      - condition: trigger
+                        id: "rest_off"
+                  - condition: state
+                    entity_id: !input light_entity_1
+                    state: "on"
               - condition: numeric_state
                 entity_id: !input lux_sensor
                 below: !input activation_lux_threshold
         then:
           - variables:
               on_bri_1: >-
-                {{ lamp1_constant_bri | int if effective_mode == 'constant' else init_bri_1 | int }}
+                {{ lamp1_constant_bri | int if effective_mode == 'constant'
+                   else curve_brightness_l1 | int if trigger.id == 'rest_off'
+                   else init_bri_1 | int }}
               on_bri_2: >-
-                {{ lamp2_constant_bri | int if effective_mode == 'constant' else init_bri_2 | int }}
+                {{ lamp2_constant_bri | int if effective_mode == 'constant'
+                   else curve_brightness_l2 | int if trigger.id == 'rest_off'
+                   else init_bri_2 | int }}
               on_bri_3: >-
-                {{ lamp3_constant_bri | int if effective_mode == 'constant' else init_bri_3 | int }}
+                {{ lamp3_constant_bri | int if effective_mode == 'constant'
+                   else curve_brightness_l3 | int if trigger.id == 'rest_off'
+                   else init_bri_3 | int }}
               on_bri_4: >-
-                {{ lamp4_constant_bri | int if effective_mode == 'constant' else init_bri_4 | int }}
+                {{ lamp4_constant_bri | int if effective_mode == 'constant'
+                   else curve_brightness_l4 | int if trigger.id == 'rest_off'
+                   else init_bri_4 | int }}
               on_bri_5: >-
-                {{ lamp5_constant_bri | int if effective_mode == 'constant' else init_bri_5 | int }}
+                {{ lamp5_constant_bri | int if effective_mode == 'constant'
+                   else curve_brightness_l5 | int if trigger.id == 'rest_off'
+                   else init_bri_5 | int }}
 
           - choose:
               - conditions: ["{{ lamp1_use_rgb }}"]
@@ -2776,6 +2942,51 @@ action:
 
           # ── Bypass-Guard ──────────────────────────────────────────────────
           - if:
+              - "{{ bypass_switch | length == 0 or not is_state(bypass_switch, 'on') }}"
+            then:
+              - action: light.turn_off
+                target:
+                  entity_id: "{{ light_entity_1 }}"
+                data:
+                  transition: "{{ light_transition_off | float }}"
+              - if:
+                  - "{{ lamp2_active }}"
+                then:
+                  - action: light.turn_off
+                    target:
+                      entity_id: "{{ light_entity_2 }}"
+                    data:
+                      transition: "{{ light_transition_off | float }}"
+              - if:
+                  - "{{ lamp3_active }}"
+                then:
+                  - action: light.turn_off
+                    target:
+                      entity_id: "{{ light_entity_3 }}"
+                    data:
+                      transition: "{{ light_transition_off | float }}"
+              - if:
+                  - "{{ lamp4_active }}"
+                then:
+                  - action: light.turn_off
+                    target:
+                      entity_id: "{{ light_entity_4 }}"
+                    data:
+                      transition: "{{ light_transition_off | float }}"
+              - if:
+                  - "{{ lamp5_active }}"
+                then:
+                  - action: light.turn_off
+                    target:
+                      entity_id: "{{ light_entity_5 }}"
+                    data:
+                      transition: "{{ light_transition_off | float }}"
+        # Ruhemodus beendet bei Anwesenheit, aber aktueller Modus schaltet nicht ein
+        # (Modus "Aus" oder zu hell) → evtl. noch leuchtendes Ruhemodus-Nachtlicht aus.
+        else:
+          - if:
+              - condition: trigger
+                id: "rest_off"
               - "{{ bypass_switch | length == 0 or not is_state(bypass_switch, 'on') }}"
             then:
               - action: light.turn_off

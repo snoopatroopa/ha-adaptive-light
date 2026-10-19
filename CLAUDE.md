@@ -6,14 +6,19 @@
 ## Repo
 - GitHub: `snoopatroopa/ha-adaptive-light`
 - Blueprint-Datei: `sensor-light-lux.yaml`
-- Aktuelle Version: **2026.08.16** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
+- Aktuelle Version: **2026.10.19** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
 
 ---
 
 ## Architektur – Blueprint-Struktur
 
 ```
-Trigger: motion | motion_off | switch | lux_drop
+Trigger: motion | motion_off | switch | lux_drop | rest_on | rest_off
+    │
+    ├── Branch 0: RUHEMODUS (rest_mode_active, seit 2026.10.19)
+    │     Blockiert alle Trigger solange Ruhemodus-Schalter an.
+    │     rest_on + Aktion 'off' → alle Lampen aus.
+    │     rest_on + Aktion 'night_light' → fällt bewusst zu Branch 3 durch
     │
     ├── Branch 1: ZUSATZ-TRIGGER (switch)
     │     Einschalten → Warten (by_presence / by_switch / by_both) → Ausschalten
@@ -23,9 +28,11 @@ Trigger: motion | motion_off | switch | lux_drop
     │     erneut prüfen → alle konfigurierten Lampen aus
     │     (Vorrang für Branch 1: schaltet nicht aus wenn Zusatz-Trigger aktiv an ist)
     │
-    ├── Branch 3: NACHTLICHT (motion + effective_mode == 'night_light')
+    ├── Branch 3: NACHTLICHT (motion + effective_mode == 'night_light'
+    │     ODER rest_off + Präsenz + night_light ODER rest_on + Aktion night_light)
     │     Direkt-Einschalten auf Nachtwerte (kein Aus-vor-An mehr, seit
     │     2026.07.21) → Warten → Nachlauf → Ausschalten
+    │     (bei rest_on: nur Einschalten, kein Warten/Ausschalten)
     │
     ├── Branch 4: AUS (motion + effective_mode == 'off')
     │     → nichts tun
@@ -42,6 +49,8 @@ Trigger: motion | motion_off | switch | lux_drop
           → Aktivierungs-Check → Einschalten per Lichtkurve →
           Lux-Regelschleife (while Präsenz, Bewegung vor jedem Stellschritt
           erneut geprüft) → Nachlauf → Bypass-Guard → Ausschalten
+          Bei rest_off: Startwert aus Lichtkurve, Lampe-1-an zählt nicht als
+          Aktivierung; schaltet der Modus nicht ein → else: Lampen aus
 ```
 
 ---
@@ -56,6 +65,7 @@ Trigger: motion | motion_off | switch | lux_drop
 | Auto-Off | Nur wenn lamp1 ≤ auto_off_brightness UND zu hell → alle Lampen aus |
 | Farben | RGB überschreibt Farbtemperatur; Nachtlicht-Farbe unabhängig von Hauptfarbe |
 | `lamp2_active` | `{{ light_entity_2 | length > 0 }}` – prüft ob Entität konfiguriert |
+| Ruhemodus | Eigenständiger optionaler Schalter (`rest_mode_switch` + `rest_mode_action`). Pausiert intern statt `automation.turn_off` (sonst käme `rest_off` nie an). Nutzt die bestehenden Nachtlicht-Einstellungen pro Lampe statt eines zweiten Lampen-Profils. Höchste Priorität (Branch 0) |
 | Modus-Override | Eigenständiger optionaler Schalter (`mode_override_switch` + `mode_override_mode`), unabhängig vom bestehenden Bypass. Greift nur wenn `active_mode == 'off'` – überschreibt keine bereits konfigurierten Lux/Konstant-Zeiträume und niemals Nachtlicht (Priorität bleibt Zusatz-Trigger > Nachtlicht > Override > Zeitraum-Modus) |
 
 ---
@@ -154,6 +164,9 @@ off_delay_minutes: # Branch 2 (BEWEGUNG-AUS): night_time_delay falls
                   # effective_mode == 'night_light', sonst time_delay
 mode_override_switch: # !input, optionaler input_boolean/binary_sensor für Modus-Override
 mode_override_mode:   # !input, 'lux' | 'constant' – Ziel-Modus des Overrides
+rest_mode_switch:     # !input, optionaler input_boolean/binary_sensor für Ruhemodus
+rest_mode_action:     # !input, 'off' | 'night_light' – Aktion beim Aktivieren
+rest_mode_active:     # true wenn rest_mode_switch konfiguriert und 'on'
 ```
 
 ---
@@ -187,6 +200,19 @@ with open('sensor-light-lux.yaml') as f:
 ---
 
 ## Changelog
+
+### 2026.10.19 – Neues Feature: Ruhemodus
+**Änderung:** Neuer optionaler Input-Bereich `rest_mode_settings` mit
+`rest_mode_switch` und `rest_mode_action`, neue Trigger `rest_on`/`rest_off`,
+neuer Branch 0 (blockiert alle anderen Trigger bei aktivem Ruhemodus,
+schaltet bei `rest_on` + 'off' aus). Branch 3 um Einstiege `rest_on`
+(Nachtlicht, ohne Warten/Aus) und `rest_off` (Präsenz + Nachtlicht-Modus)
+erweitert. Default-Zweig: bei `rest_off` Startwert aus Lichtkurve statt
+aktueller (Nachtlicht-)Helligkeit, Lampe-1-an-Abkürzung im Aktivierungscheck
+ausgesetzt, neuer `else`-Zweig schaltet aus, wenn der Modus nicht einschaltet.
+Ohne Präsenz übernimmt Branch 5 das Ausschalten nach Nachlauf.
+**Grund:** Nutzer wollte die Automation per Helfer pausieren können (Lampen
+aus oder Nachtlicht) und beim Beenden direkt in den aktuellen Modus zurück.
 
 ### 2026.08.16 – Neues Feature: Modus-Override
 **Änderung:** Neuer optionaler Input-Bereich `mode_override_settings` mit
