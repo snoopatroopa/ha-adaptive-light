@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 2026.10.19**
+    **Version: 2026.10.19.2**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -31,8 +31,9 @@ blueprint:
 
     - ⛔ **Aus:** Keine Reaktion auf Bewegung.
 
-    - 😴 **Ruhemodus (optional):** Schalter an → Automation pausiert, Lampen aus
-      oder dauerhaft Nachtlicht. Schalter aus → bei Anwesenheit sofort aktueller Modus.
+    - 😴 **Ruhemodus (optional):** Schalter an → Automation pausiert, Lampen aus,
+      dauerhaft Nachtlicht oder Nachtlicht bei Bewegung. Schalter aus → bei
+      Anwesenheit sofort aktueller Modus.
 
 
     **Farbpriorität (pro Modus):** RGB überschreibt Farbtemperatur wenn beide aktiviert sind.
@@ -81,6 +82,12 @@ blueprint:
 
     <details>
     <summary><b>Changelog:</b> 👈</summary>
+
+    **2026.10.19.2** – Ruhemodus: dritte Aktion "🚶 Nachtlicht bei Bewegung". Solange
+    der Ruhemodus an ist, läuft unabhängig vom Zeitraum der Nachtlicht-Modus:
+    Bewegung schaltet das Nachtlicht ein, ohne Anwesenheit geht es nach der
+    Nachtlicht-Nachlaufzeit wieder aus. Beim Aktivieren mit Anwesenheit sofort
+    Nachtlicht, ohne Anwesenheit sofort aus. Zusatz-Trigger bleibt gesperrt.
 
     **2026.10.19** – Neues Feature: Ruhemodus. Optionaler `input_boolean`- oder
     `binary_sensor`-Schalter pausiert die Automation (Bewegung, Bewegungsende,
@@ -1541,9 +1548,14 @@ blueprint:
         rest_mode_action:
           name: Ruhemodus – Aktion beim Aktivieren
           description: >-
-            "Nachtlicht" verwendet die Nachtlicht-Einstellungen der einzelnen Lampen
-            (Helligkeit, Farbe, "Nachtlicht deaktivieren") aus den Reitern "Licht #1–#5".
-            Die Lampen bleiben dann bis zum Ausschalten des Ruhemodus auf Nachtlicht.
+            Beide Nachtlicht-Optionen verwenden die Nachtlicht-Einstellungen der einzelnen
+            Lampen (Helligkeit, Farbe, "Nachtlicht deaktivieren") aus den Reitern
+            "Licht #1–#5". "Nachtlicht dauerhaft": die Lampen bleiben bis zum Ausschalten
+            des Ruhemodus auf Nachtlicht, Bewegung wird ignoriert. "Nachtlicht bei
+            Bewegung": solange der Ruhemodus an ist, läuft unabhängig vom Zeitraum der
+            Nachtlicht-Modus – Bewegung schaltet das Nachtlicht ein, ohne Anwesenheit geht
+            es nach der Nachtlicht-Nachlaufzeit wieder aus. Lux-Regelung, Konstant und
+            Zusatz-Trigger bleiben gesperrt.
           default: "off"
           selector:
             select:
@@ -1552,6 +1564,8 @@ blueprint:
                   value: "off"
                 - label: "🌙 Nachtlicht dauerhaft einschalten"
                   value: "night_light"
+                - label: "🚶 Nachtlicht bei Bewegung (aus ohne Anwesenheit)"
+                  value: "night_motion"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 mode: restart
@@ -1721,7 +1735,9 @@ variables:
     {% if ns.result == 0 %}{{ target_lux | int }}{% else %}{{ ns.result }}{% endif %}
 
   effective_mode: >-
-    {% if active_mode == 'night_light' and include_night_light == 'night_light_disabled' %}
+    {% if rest_mode_active and rest_mode_action == 'night_motion' %}
+      night_light
+    {% elif active_mode == 'night_light' and include_night_light == 'night_light_disabled' %}
       off
     {% elif active_mode == 'off' and mode_override_switch | length > 0 and is_state(mode_override_switch, 'on') %}
       {{ mode_override_mode }}
@@ -1861,21 +1877,40 @@ action:
     # ──────────────────────────────────────────────────────────────────────────
     # Branch 0: RUHEMODUS AKTIV
     #
-    # Solange der Ruhemodus-Schalter an ist, werden alle übrigen Trigger
-    # ignoriert. Beim Trigger rest_on mit Aktion "Aus" werden hier alle Lampen
-    # ausgeschaltet; mode: restart bricht dabei jeden laufenden Durchlauf ab.
-    # rest_on mit Aktion "Nachtlicht" fällt bewusst durch zu Branch 3, damit die
+    # Aktion "off" / "night_light": alle übrigen Trigger werden ignoriert.
+    # Aktion "night_motion": effective_mode ist 'night_light', Bewegung,
+    # Bewegungsende und Lux-Abfall laufen normal über Branch 2/3/5 – nur der
+    # Zusatz-Trigger wird geblockt.
+    # Bei rest_on werden hier alle Lampen ausgeschaltet (Aktion "off", oder
+    # "night_motion" ohne Anwesenheit); mode: restart bricht dabei jeden
+    # laufenden Durchlauf ab. rest_on mit "night_light" bzw. "night_motion"
+    # bei Anwesenheit fällt bewusst durch zu Branch 3, damit die
     # Nachtlicht-Einschaltlogik nicht dupliziert werden muss.
     # ──────────────────────────────────────────────────────────────────────────
     - conditions:
         - "{{ rest_mode_active }}"
-        - condition: not
+        - condition: or
           conditions:
             - condition: and
               conditions:
                 - condition: trigger
                   id: "rest_on"
-                - "{{ rest_mode_action == 'night_light' }}"
+                - "{{ rest_mode_action == 'off' }}"
+            - condition: and
+              conditions:
+                - condition: trigger
+                  id: "rest_on"
+                - "{{ rest_mode_action == 'night_motion' }}"
+                - "{{ expand(motion_sensor) | selectattr('state', 'eq', 'on') | list | count == 0 }}"
+            - condition: and
+              conditions:
+                - condition: not
+                  conditions:
+                    - condition: trigger
+                      id: "rest_on"
+                - "{{ rest_mode_action != 'night_motion' }}"
+            - condition: trigger
+              id: "switch"
       sequence:
         - if:
             - condition: trigger
@@ -2190,10 +2225,12 @@ action:
     # ──────────────────────────────────────────────────────────────────────────
     # Branch 3: NACHTLICHT
     #
-    # Einstieg über Bewegung (regulär), über rest_off bei Anwesenheit (Ruhemodus
-    # beendet, aktueller Modus ist Nachtlicht) oder über rest_on mit Aktion
-    # "Nachtlicht" (Lampen bleiben dann dauerhaft an – kein Warten/Ausschalten,
-    # das übernimmt später rest_off).
+    # Einstieg über Bewegung (regulär, oder Ruhemodus "night_motion" über
+    # effective_mode), über rest_off bei Anwesenheit (Ruhemodus beendet,
+    # aktueller Modus ist Nachtlicht) oder über rest_on mit Aktion
+    # "night_light" (Lampen bleiben dann dauerhaft an – kein Warten/Ausschalten,
+    # das übernimmt später rest_off) bzw. "night_motion" bei Anwesenheit
+    # (normales Warten/Nachlauf/Ausschalten).
     # ──────────────────────────────────────────────────────────────────────────
     - conditions:
         - condition: or
@@ -2213,7 +2250,7 @@ action:
               conditions:
                 - condition: trigger
                   id: "rest_on"
-                - "{{ rest_mode_action == 'night_light' }}"
+                - "{{ rest_mode_action in ['night_light', 'night_motion'] }}"
       sequence:
         - if:
             - "{{ not lamp1_night_disabled }}"
@@ -2406,8 +2443,11 @@ action:
         - if:
             - condition: not
               conditions:
-                - condition: trigger
-                  id: "rest_on"
+                - condition: and
+                  conditions:
+                    - condition: trigger
+                      id: "rest_on"
+                    - "{{ rest_mode_action == 'night_light' }}"
           then:
             - repeat:
                 while:

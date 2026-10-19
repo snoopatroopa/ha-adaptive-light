@@ -3,7 +3,7 @@
 **Home Assistant Blueprint** für bewegungsgesteuerte, lux-geregelte Beleuchtung.
 
 [![HA Blueprint](https://img.shields.io/badge/Home%20Assistant-Blueprint-blue?logo=home-assistant)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/Version-2026.10.19-green)]()
+[![Version](https://img.shields.io/badge/Version-2026.10.19.2-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -23,7 +23,7 @@
 | 🔀 **Zusatz-Trigger** | Optionaler Schalter-Trigger mit eigenem Lifecycle |
 | 🎨 **RGB & Farbtemperatur** | Pro Lampe und Modus konfigurierbar |
 | 🔓 **Bypass** | `input_boolean` hält Licht dauerhaft aktiv |
-| 😴 **Ruhemodus** | Schalter pausiert die Automation – Lampen aus oder dauerhaft Nachtlicht |
+| 😴 **Ruhemodus** | Schalter pausiert die Automation – Lampen aus, dauerhaft Nachtlicht oder Nachtlicht bei Bewegung |
 | 👥 **Bis zu 5 Lampen** | Individuell kalibrierbar |
 | 📡 **Bis zu 5 Sensoren** | Bewegungs- und Präsenzsensoren, inkl. Gruppen |
 
@@ -72,7 +72,9 @@ Zeitraum 1 gilt ab 00:00 Uhr (Standardmodus).
 Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop / Ruhemodus an/aus)
     │
     ├── Branch 0: Ruhemodus     → alle Trigger ignorieren; beim Aktivieren Lampen aus
-    │                             (Aktion "Nachtlicht" → weiter in Branch 3 ohne Ausschalten)
+    │                             (Aktion "Nachtlicht" → weiter in Branch 3 ohne Ausschalten;
+    │                              "Nachtlicht bei Bewegung" → Nachtlicht-Modus erzwungen,
+    │                              nur Zusatz-Trigger geblockt)
     ├── Branch 1: Zusatz-Trigger → Einschalten → Warten → Ausschalten
     ├── Branch 2: Bewegung-Aus  → Nachlauf → erneute Prüfung → Ausschalten
     ├── Branch 3: Nachtlicht    → Direkt-Einschalten (Nachtwerte) → Warten → Nachlauf → Ausschalten
@@ -85,6 +87,14 @@ Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop / Ruhemodus an/aus)
 ---
 
 ## Changelog
+
+### 2026.10.19.2
+- **Ruhemodus: dritte Aktion „🚶 Nachtlicht bei Bewegung“.** Solange der Ruhemodus
+  an ist, wird unabhängig vom Zeitraum der Nachtlicht-Modus erzwungen: Bewegung
+  schaltet das Nachtlicht ein, ohne Anwesenheit geht es nach `night_time_delay`
+  wieder aus (regulärer Bewegung-Aus-Branch). Beim Aktivieren mit Anwesenheit
+  sofort Nachtlicht, ohne Anwesenheit sofort aus. Lux-Regelung, Konstant und
+  Zusatz-Trigger bleiben bis zum Ausschalten des Ruhemodus gesperrt.
 
 ### 2026.10.19
 - **Neues Feature: Ruhemodus.** Optionaler `input_boolean`- oder `binary_sensor`-Schalter

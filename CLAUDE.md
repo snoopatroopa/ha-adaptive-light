@@ -6,7 +6,7 @@
 ## Repo
 - GitHub: `snoopatroopa/ha-adaptive-light`
 - Blueprint-Datei: `sensor-light-lux.yaml`
-- Aktuelle Version: **2026.10.19** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
+- Aktuelle Version: **2026.10.19.2** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
 
 ---
 
@@ -16,9 +16,12 @@
 Trigger: motion | motion_off | switch | lux_drop | rest_on | rest_off
     │
     ├── Branch 0: RUHEMODUS (rest_mode_active, seit 2026.10.19)
-    │     Blockiert alle Trigger solange Ruhemodus-Schalter an.
-    │     rest_on + Aktion 'off' → alle Lampen aus.
-    │     rest_on + Aktion 'night_light' → fällt bewusst zu Branch 3 durch
+    │     Aktion 'off'/'night_light': blockiert alle Trigger solange an.
+    │     Aktion 'night_motion' (seit 2026.10.19.2): effective_mode wird
+    │     'night_light' erzwungen, nur Zusatz-Trigger geblockt; Bewegung/
+    │     Bewegung-aus laufen normal über Branch 3/2.
+    │     rest_on + 'off' oder 'night_motion' ohne Präsenz → alle Lampen aus.
+    │     rest_on + 'night_light' / 'night_motion' mit Präsenz → Branch 3
     │
     ├── Branch 1: ZUSATZ-TRIGGER (switch)
     │     Einschalten → Warten (by_presence / by_switch / by_both) → Ausschalten
@@ -29,10 +32,11 @@ Trigger: motion | motion_off | switch | lux_drop | rest_on | rest_off
     │     (Vorrang für Branch 1: schaltet nicht aus wenn Zusatz-Trigger aktiv an ist)
     │
     ├── Branch 3: NACHTLICHT (motion + effective_mode == 'night_light'
-    │     ODER rest_off + Präsenz + night_light ODER rest_on + Aktion night_light)
+    │     ODER rest_off + Präsenz + night_light ODER rest_on + Aktion
+    │     night_light/night_motion)
     │     Direkt-Einschalten auf Nachtwerte (kein Aus-vor-An mehr, seit
     │     2026.07.21) → Warten → Nachlauf → Ausschalten
-    │     (bei rest_on: nur Einschalten, kein Warten/Ausschalten)
+    │     (bei rest_on + night_light: nur Einschalten, kein Warten/Ausschalten)
     │
     ├── Branch 4: AUS (motion + effective_mode == 'off')
     │     → nichts tun
@@ -44,7 +48,8 @@ Trigger: motion | motion_off | switch | lux_drop | rest_on | rest_off
     │     → Nachlauf nachholen → doppelt prüfen → Ausschalten
     │
     └── Default: LUX-REGELUNG oder KONSTANT
-          effective_mode (= active_mode, außer Nachtlicht-Disable-Fallback
+          effective_mode (= active_mode, außer Ruhemodus night_motion → night_light,
+          Nachtlicht-Disable-Fallback
           ODER Modus-Override bei aktivem Zeitraum "Aus", seit 2026.08.16)
           → Aktivierungs-Check → Einschalten per Lichtkurve →
           Lux-Regelschleife (while Präsenz, Bewegung vor jedem Stellschritt
@@ -165,7 +170,7 @@ off_delay_minutes: # Branch 2 (BEWEGUNG-AUS): night_time_delay falls
 mode_override_switch: # !input, optionaler input_boolean/binary_sensor für Modus-Override
 mode_override_mode:   # !input, 'lux' | 'constant' – Ziel-Modus des Overrides
 rest_mode_switch:     # !input, optionaler input_boolean/binary_sensor für Ruhemodus
-rest_mode_action:     # !input, 'off' | 'night_light' – Aktion beim Aktivieren
+rest_mode_action:     # !input, 'off' | 'night_light' | 'night_motion' – Aktion des Ruhemodus
 rest_mode_active:     # true wenn rest_mode_switch konfiguriert und 'on'
 ```
 
@@ -200,6 +205,18 @@ with open('sensor-light-lux.yaml') as f:
 ---
 
 ## Changelog
+
+### 2026.10.19.2 – Ruhemodus: Aktion „Nachtlicht bei Bewegung“
+**Änderung:** Neue Option `night_motion` für `rest_mode_action`. Erster Zweig in
+`effective_mode`: Ruhemodus aktiv + `night_motion` → `'night_light'` (vor
+Nachtlicht-Disable-Fallback und Override). Branch 0 blockt bei `night_motion`
+nur noch den Zusatz-Trigger und schaltet bei `rest_on` ohne Präsenz aus;
+Branch 3 nimmt `rest_on` + `night_motion` mit Präsenz auf und durchläuft dann
+regulär Warten/Nachlauf/Ausschalten.
+**Grund:** Test zeigte, dass „Nachtlicht dauerhaft“ beim Verlassen des Raums
+brennen bleibt (so gebaut). Nutzer wollte zusätzlich eine Variante, bei der
+das Nachtlicht im Ruhemodus bewegungsgesteuert an/aus geht und erst nach
+Deaktivieren wieder der normale Modus läuft.
 
 ### 2026.10.19 – Neues Feature: Ruhemodus
 **Änderung:** Neuer optionaler Input-Bereich `rest_mode_settings` mit
