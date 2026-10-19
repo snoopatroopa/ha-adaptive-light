@@ -3,7 +3,7 @@
 **Home Assistant Blueprint** für bewegungsgesteuerte, lux-geregelte Beleuchtung.
 
 [![HA Blueprint](https://img.shields.io/badge/Home%20Assistant-Blueprint-blue?logo=home-assistant)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/Version-2026.08.16-green)]()
+[![Version](https://img.shields.io/badge/Version-2026.10.19-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -23,6 +23,7 @@
 | 🔀 **Zusatz-Trigger** | Optionaler Schalter-Trigger mit eigenem Lifecycle |
 | 🎨 **RGB & Farbtemperatur** | Pro Lampe und Modus konfigurierbar |
 | 🔓 **Bypass** | `input_boolean` hält Licht dauerhaft aktiv |
+| 😴 **Ruhemodus** | Schalter pausiert die Automation – Lampen aus oder dauerhaft Nachtlicht |
 | 👥 **Bis zu 5 Lampen** | Individuell kalibrierbar |
 | 📡 **Bis zu 5 Sensoren** | Bewegungs- und Präsenzsensoren, inkl. Gruppen |
 
@@ -68,8 +69,10 @@ Zeitraum 1 gilt ab 00:00 Uhr (Standardmodus).
 ## Betriebsmodi & Ablauf
 
 ```
-Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop)
+Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop / Ruhemodus an/aus)
     │
+    ├── Branch 0: Ruhemodus     → alle Trigger ignorieren; beim Aktivieren Lampen aus
+    │                             (Aktion "Nachtlicht" → weiter in Branch 3 ohne Ausschalten)
     ├── Branch 1: Zusatz-Trigger → Einschalten → Warten → Ausschalten
     ├── Branch 2: Bewegung-Aus  → Nachlauf → erneute Prüfung → Ausschalten
     ├── Branch 3: Nachtlicht    → Direkt-Einschalten (Nachtwerte) → Warten → Nachlauf → Ausschalten
@@ -82,6 +85,17 @@ Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop)
 ---
 
 ## Changelog
+
+### 2026.10.19
+- **Neues Feature: Ruhemodus.** Optionaler `input_boolean`- oder `binary_sensor`-Schalter
+  (`rest_mode_switch`) plus Aktion (`rest_mode_action`: alle Lampen aus oder
+  dauerhaft Nachtlicht). Solange der Schalter an ist, ignoriert die Automation
+  alle anderen Trigger. Für das Nachtlicht werden die bestehenden
+  Nachtlicht-Einstellungen pro Lampe verwendet (keine zweite Konfiguration).
+  Beim Ausschalten wird bei Anwesenheit sofort der aktuell gültige Modus
+  angewendet; die Lux-Regelung startet dabei mit der Lichtkurve und dem echten
+  Lux-Aktivierungscheck statt mit der Nachtlicht-Helligkeit. Ohne Anwesenheit
+  gehen noch leuchtende Lampen nach der Nachlaufzeit aus (Aufräum-Branch).
 
 ### 2026.08.16
 - **Neues Feature: Modus-Override.** Optionaler `input_boolean`- oder `binary_sensor`-Schalter
