@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 2026.10.25**
+    **Version: 2026.10.25.2**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -82,6 +82,11 @@ blueprint:
 
     <details>
     <summary><b>Changelog:</b> 👈</summary>
+
+    **2026.10.25.2** – Neu: Konstant-Helligkeit (%) pro Zeitraum im Reiter
+    "Zeiträume & Betriebsmodi". Gilt für alle Lampen, wenn der Zeitraum (oder
+    der Modus-Override) auf "Konstante Helligkeit" steht. 0 = wie bisher die
+    Konstant-Helligkeit der einzelnen Lampen.
 
     **2026.10.25** – Modus-Override: neue Auswahl "Übersteuerte Modi" (Aus,
     Lux-Regelung, Konstant; Standard: nur Aus = bisheriges Verhalten). Damit
@@ -1236,6 +1241,19 @@ blueprint:
               max: 1000
               step: 5
               unit_of_measurement: lux
+        period_1_constant_bri:
+          name: "Zeitraum 1 – Konstant-Helligkeit (%)"
+          description: >
+            Nur wirksam im Modus "Konstante Helligkeit" (auch wenn der Modus-Override
+            in diesem Zeitraum auf Konstant umschaltet). Gilt für alle Lampen.
+            0 = Konstant-Helligkeit der einzelnen Lampen verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
 
         period_2_enabled:
           name: "Zeitraum 2 aktivieren"
@@ -1272,6 +1290,19 @@ blueprint:
               max: 1000
               step: 5
               unit_of_measurement: lux
+        period_2_constant_bri:
+          name: "Zeitraum 2 – Konstant-Helligkeit (%)"
+          description: >
+            Nur wirksam im Modus "Konstante Helligkeit" (auch wenn der Modus-Override
+            in diesem Zeitraum auf Konstant umschaltet). Gilt für alle Lampen.
+            0 = Konstant-Helligkeit der einzelnen Lampen verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
 
         period_3_enabled:
           name: "Zeitraum 3 aktivieren"
@@ -1308,6 +1339,19 @@ blueprint:
               max: 1000
               step: 5
               unit_of_measurement: lux
+        period_3_constant_bri:
+          name: "Zeitraum 3 – Konstant-Helligkeit (%)"
+          description: >
+            Nur wirksam im Modus "Konstante Helligkeit" (auch wenn der Modus-Override
+            in diesem Zeitraum auf Konstant umschaltet). Gilt für alle Lampen.
+            0 = Konstant-Helligkeit der einzelnen Lampen verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
 
         period_4_enabled:
           name: "Zeitraum 4 aktivieren"
@@ -1344,6 +1388,19 @@ blueprint:
               max: 1000
               step: 5
               unit_of_measurement: lux
+        period_4_constant_bri:
+          name: "Zeitraum 4 – Konstant-Helligkeit (%)"
+          description: >
+            Nur wirksam im Modus "Konstante Helligkeit" (auch wenn der Modus-Override
+            in diesem Zeitraum auf Konstant umschaltet). Gilt für alle Lampen.
+            0 = Konstant-Helligkeit der einzelnen Lampen verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
 
         period_5_enabled:
           name: "Zeitraum 5 aktivieren"
@@ -1380,6 +1437,19 @@ blueprint:
               max: 1000
               step: 5
               unit_of_measurement: lux
+        period_5_constant_bri:
+          name: "Zeitraum 5 – Konstant-Helligkeit (%)"
+          description: >
+            Nur wirksam im Modus "Konstante Helligkeit" (auch wenn der Modus-Override
+            in diesem Zeitraum auf Konstant umschaltet). Gilt für alle Lampen.
+            0 = Konstant-Helligkeit der einzelnen Lampen verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
 
         period_6_enabled:
           name: "Zeitraum 6 aktivieren"
@@ -1416,6 +1486,19 @@ blueprint:
               max: 1000
               step: 5
               unit_of_measurement: lux
+        period_6_constant_bri:
+          name: "Zeitraum 6 – Konstant-Helligkeit (%)"
+          description: >
+            Nur wirksam im Modus "Konstante Helligkeit" (auch wenn der Modus-Override
+            in diesem Zeitraum auf Konstant umschaltet). Gilt für alle Lampen.
+            0 = Konstant-Helligkeit der einzelnen Lampen verwenden.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 1
+              unit_of_measurement: '%'
 
     # ═══════════════════════════════════════════════════════════════
     night_light_settings:
@@ -1727,6 +1810,12 @@ variables:
   period_4_target_lux: !input period_4_target_lux
   period_5_target_lux: !input period_5_target_lux
   period_6_target_lux: !input period_6_target_lux
+  period_1_constant_bri: !input period_1_constant_bri
+  period_2_constant_bri: !input period_2_constant_bri
+  period_3_constant_bri: !input period_3_constant_bri
+  period_4_constant_bri: !input period_4_constant_bri
+  period_5_constant_bri: !input period_5_constant_bri
+  period_6_constant_bri: !input period_6_constant_bri
   include_night_light: !input include_night_light
   include_switch_trigger: !input include_switch_trigger
   switch_trigger_entity: !input switch_trigger_entity
@@ -1759,6 +1848,17 @@ variables:
     {% if period_5_enabled and t >= period_5_start %}{% set ns.result = period_5_target_lux | int(0) %}{% endif %}
     {% if period_6_enabled and t >= period_6_start %}{% set ns.result = period_6_target_lux | int(0) %}{% endif %}
     {% if ns.result == 0 %}{{ target_lux | int }}{% else %}{{ ns.result }}{% endif %}
+
+  # 0 = kein Zeitraum-Wert → Konstant-Helligkeit der einzelnen Lampen verwenden
+  active_constant_bri: >-
+    {% set ns = namespace(result=period_1_constant_bri | int(0)) %}
+    {% set t = now().strftime('%H:%M:%S') %}
+    {% if period_2_enabled and t >= period_2_start %}{% set ns.result = period_2_constant_bri | int(0) %}{% endif %}
+    {% if period_3_enabled and t >= period_3_start %}{% set ns.result = period_3_constant_bri | int(0) %}{% endif %}
+    {% if period_4_enabled and t >= period_4_start %}{% set ns.result = period_4_constant_bri | int(0) %}{% endif %}
+    {% if period_5_enabled and t >= period_5_start %}{% set ns.result = period_5_constant_bri | int(0) %}{% endif %}
+    {% if period_6_enabled and t >= period_6_start %}{% set ns.result = period_6_constant_bri | int(0) %}{% endif %}
+    {{ ns.result }}
 
   effective_mode: >-
     {% if rest_mode_active and rest_mode_action == 'night_motion' %}
@@ -2636,23 +2736,23 @@ action:
         then:
           - variables:
               on_bri_1: >-
-                {{ lamp1_constant_bri | int if effective_mode == 'constant'
+                {{ (active_constant_bri | int or lamp1_constant_bri | int) if effective_mode == 'constant'
                    else curve_brightness_l1 | int if trigger.id == 'rest_off'
                    else init_bri_1 | int }}
               on_bri_2: >-
-                {{ lamp2_constant_bri | int if effective_mode == 'constant'
+                {{ (active_constant_bri | int or lamp2_constant_bri | int) if effective_mode == 'constant'
                    else curve_brightness_l2 | int if trigger.id == 'rest_off'
                    else init_bri_2 | int }}
               on_bri_3: >-
-                {{ lamp3_constant_bri | int if effective_mode == 'constant'
+                {{ (active_constant_bri | int or lamp3_constant_bri | int) if effective_mode == 'constant'
                    else curve_brightness_l3 | int if trigger.id == 'rest_off'
                    else init_bri_3 | int }}
               on_bri_4: >-
-                {{ lamp4_constant_bri | int if effective_mode == 'constant'
+                {{ (active_constant_bri | int or lamp4_constant_bri | int) if effective_mode == 'constant'
                    else curve_brightness_l4 | int if trigger.id == 'rest_off'
                    else init_bri_4 | int }}
               on_bri_5: >-
-                {{ lamp5_constant_bri | int if effective_mode == 'constant'
+                {{ (active_constant_bri | int or lamp5_constant_bri | int) if effective_mode == 'constant'
                    else curve_brightness_l5 | int if trigger.id == 'rest_off'
                    else init_bri_5 | int }}
 

@@ -3,7 +3,7 @@
 **Home Assistant Blueprint** für bewegungsgesteuerte, lux-geregelte Beleuchtung.
 
 [![HA Blueprint](https://img.shields.io/badge/Home%20Assistant-Blueprint-blue?logo=home-assistant)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/Version-2026.10.25-green)]()
+[![Version](https://img.shields.io/badge/Version-2026.10.25.2-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -61,7 +61,8 @@
 
 ### Zeiträume
 
-Bis zu 5 Zeiträume mit je eigenem Modus (Lux / Konstant / Nachtlicht / Aus).
+Bis zu 5 Zeiträume mit je eigenem Modus (Lux / Konstant / Nachtlicht / Aus),
+eigenem Ziel-Lux und eigener Konstant-Helligkeit (0 = Werte der einzelnen Lampen).
 Zeitraum 1 gilt ab 00:00 Uhr (Standardmodus).
 
 ---
@@ -87,6 +88,12 @@ Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop / Ruhemodus an/aus)
 ---
 
 ## Changelog
+
+### 2026.10.25.2
+- **Konstant-Helligkeit pro Zeitraum.** Neue Einstellung `period_N_constant_bri`
+  (0–100 %) im Reiter „Zeiträume & Betriebsmodi“. Steht der Zeitraum – oder der
+  Modus-Override – auf „Konstante Helligkeit“, gehen alle Lampen auf diesen Wert.
+  0 (Standard) = wie bisher die Konstant-Helligkeit der einzelnen Lampen.
 
 ### 2026.10.25
 - **Modus-Override: wählbare übersteuerte Modi.** Neue Mehrfachauswahl

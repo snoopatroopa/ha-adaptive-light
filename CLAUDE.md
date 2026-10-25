@@ -6,7 +6,7 @@
 ## Repo
 - GitHub: `snoopatroopa/ha-adaptive-light`
 - Blueprint-Datei: `sensor-light-lux.yaml`
-- Aktuelle Version: **2026.10.25** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
+- Aktuelle Version: **2026.10.25.2** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
 
 ---
 
@@ -168,6 +168,8 @@ init_bri_1..5:    # Aktuelle Helligkeit wenn an, sonst curve_brightness
 lux_deviation:    # target_lux - current_lux_val (positiv = zu dunkel)
 off_delay_minutes: # Branch 2 (BEWEGUNG-AUS): night_time_delay falls
                   # effective_mode == 'night_light', sonst time_delay
+active_constant_bri: # Konstant-Helligkeit des aktiven Zeitraums (period_N_constant_bri),
+                      # 0 = Fallback auf lampN_constant_bri
 mode_override_switch: # !input, optionaler input_boolean/binary_sensor für Modus-Override
 mode_override_mode:   # !input, 'lux' | 'constant' – Ziel-Modus des Overrides
 mode_override_modes:  # !input, Liste aus 'off'|'lux'|'constant' – übersteuerte Basis-Modi
@@ -208,6 +210,16 @@ with open('sensor-light-lux.yaml') as f:
 ---
 
 ## Changelog
+
+### 2026.10.25.2 – Konstant-Helligkeit pro Zeitraum
+**Änderung:** Neue Inputs `period_1..6_constant_bri` (0–100 %, Default 0) im
+Reiter Zeiträume, neue Variable `active_constant_bri` (analog
+`active_target_lux`). `on_bri_1..5` im Default-Zweig nutzen im Konstant-Modus
+`active_constant_bri or lampN_constant_bri`.
+**Grund:** Nutzer will die Konstant-Helligkeit je Zeitraum einstellen – v.a.
+für den Rollo-Override (Lux → Konstant), der damit je Tageszeit
+unterschiedlich hell schaltet. Wert gilt bewusst für alle Lampen gleich
+(Muster wie Ziel-Lux pro Zeitraum); 0 erhält die Kalibrierung pro Lampe.
 
 ### 2026.10.25 – Modus-Override: wählbare übersteuerte Modi
 **Änderung:** Neuer Input `mode_override_modes` (Mehrfachauswahl `off`/`lux`/
