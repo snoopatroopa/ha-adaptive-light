@@ -6,7 +6,7 @@
 ## Repo
 - GitHub: `snoopatroopa/ha-adaptive-light`
 - Blueprint-Datei: `sensor-light-lux.yaml`
-- Aktuelle Version: **2026.10.19.2** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
+- Aktuelle Version: **2026.10.25** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
 
 ---
 
@@ -50,7 +50,8 @@ Trigger: motion | motion_off | switch | lux_drop | rest_on | rest_off
     └── Default: LUX-REGELUNG oder KONSTANT
           effective_mode (= active_mode, außer Ruhemodus night_motion → night_light,
           Nachtlicht-Disable-Fallback
-          ODER Modus-Override bei aktivem Zeitraum "Aus", seit 2026.08.16)
+          ODER Modus-Override: seit 2026.10.25 jeder Modus, mit
+          mode_override_only_off nur Zeitraum "Aus")
           → Aktivierungs-Check → Einschalten per Lichtkurve →
           Lux-Regelschleife (while Präsenz, Bewegung vor jedem Stellschritt
           erneut geprüft) → Nachlauf → Bypass-Guard → Ausschalten
@@ -71,7 +72,7 @@ Trigger: motion | motion_off | switch | lux_drop | rest_on | rest_off
 | Farben | RGB überschreibt Farbtemperatur; Nachtlicht-Farbe unabhängig von Hauptfarbe |
 | `lamp2_active` | `{{ light_entity_2 | length > 0 }}` – prüft ob Entität konfiguriert |
 | Ruhemodus | Eigenständiger optionaler Schalter (`rest_mode_switch` + `rest_mode_action`). Pausiert intern statt `automation.turn_off` (sonst käme `rest_off` nie an). Nutzt die bestehenden Nachtlicht-Einstellungen pro Lampe statt eines zweiten Lampen-Profils. Höchste Priorität (Branch 0) |
-| Modus-Override | Eigenständiger optionaler Schalter (`mode_override_switch` + `mode_override_mode`), unabhängig vom bestehenden Bypass. Greift nur wenn `active_mode == 'off'` – überschreibt keine bereits konfigurierten Lux/Konstant-Zeiträume und niemals Nachtlicht (Priorität bleibt Zusatz-Trigger > Nachtlicht > Override > Zeitraum-Modus) |
+| Modus-Override | Eigenständiger optionaler Schalter (`mode_override_switch` + `mode_override_mode` + `mode_override_only_off`), unabhängig vom bestehenden Bypass. Seit 2026.10.25: übersteuert jeden Zeitraum-Modus (inkl. Nachtlicht); mit `mode_override_only_off` (Default `true` = altes Verhalten) nur `off` bzw. Nachtlicht-bei-deaktivierter-Funktion. Ruhemodus `night_motion` hat Vorrang vor dem Override |
 
 ---
 
@@ -169,6 +170,8 @@ off_delay_minutes: # Branch 2 (BEWEGUNG-AUS): night_time_delay falls
                   # effective_mode == 'night_light', sonst time_delay
 mode_override_switch: # !input, optionaler input_boolean/binary_sensor für Modus-Override
 mode_override_mode:   # !input, 'lux' | 'constant' – Ziel-Modus des Overrides
+mode_override_only_off: # !input, bool – true: Override nur bei Zeitraum 'off'
+mode_override_active: # true wenn mode_override_switch konfiguriert und 'on'
 rest_mode_switch:     # !input, optionaler input_boolean/binary_sensor für Ruhemodus
 rest_mode_action:     # !input, 'off' | 'night_light' | 'night_motion' – Aktion des Ruhemodus
 rest_mode_active:     # true wenn rest_mode_switch konfiguriert und 'on'
@@ -205,6 +208,18 @@ with open('sensor-light-lux.yaml') as f:
 ---
 
 ## Changelog
+
+### 2026.10.25 – Modus-Override für alle Modi
+**Änderung:** Neuer Input `mode_override_only_off` (Boolean, Default `true`).
+`effective_mode` berechnet zuerst `base_mode` (active_mode inkl.
+Nachtlicht-Disable-Fallback → `off`), danach greift der Override, wenn der
+Schalter an ist UND (`not mode_override_only_off` ODER `base_mode == 'off'`).
+Neue Hilfsvariable `mode_override_active`.
+**Grund:** Nutzer wollte den Override auf alle Modi ausweiten, mit Option, ihn
+wie bisher nur auf „Aus“ wirken zu lassen. Default `true`, damit bestehende
+Instanzen ihr Verhalten nicht still ändern. Nebeneffekt: Nachtlicht-Zeiträume
+mit deaktivierter Nachtlicht-Funktion werden jetzt auch im Nur-Aus-Modus
+übersteuert (vorher griff der Fallback vor dem Override).
 
 ### 2026.10.19.2 – Ruhemodus: Aktion „Nachtlicht bei Bewegung“
 **Änderung:** Neue Option `night_motion` für `rest_mode_action`. Erster Zweig in
