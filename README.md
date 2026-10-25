@@ -3,7 +3,7 @@
 **Home Assistant Blueprint** für bewegungsgesteuerte, lux-geregelte Beleuchtung.
 
 [![HA Blueprint](https://img.shields.io/badge/Home%20Assistant-Blueprint-blue?logo=home-assistant)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/Version-2026.10.19.2-green)]()
+[![Version](https://img.shields.io/badge/Version-2026.10.25-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -80,13 +80,23 @@ Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop / Ruhemodus an/aus)
     ├── Branch 3: Nachtlicht    → Direkt-Einschalten (Nachtwerte) → Warten → Nachlauf → Ausschalten
     ├── Branch 4: Aus-Modus     → nichts tun
     ├── Branch 5: Aufräum       → Nachlauf nachholen → Ausschalten (Waisenkinder-Schutz)
-    └── Default:  Lux / Konstant (Zeitraum "Aus" per Modus-Override umschaltbar)
+    └── Default:  Lux / Konstant (Zeitraum-Modus per Modus-Override übersteuerbar, außer Nachtlicht)
                     → Einschalten → Regelschleife → Nachlauf → Ausschalten
 ```
 
 ---
 
 ## Changelog
+
+### 2026.10.25
+- **Modus-Override: wählbare übersteuerte Modi.** Neue Mehrfachauswahl
+  `mode_override_modes` (Aus / Lux-Regelung / Konstant; Standard: nur Aus =
+  bisheriges Verhalten). Beispiel: Schalter = „Rollo nicht offen“, Ziel-Modus
+  Konstant, übersteuert nur Lux → bei geschlossenem Rollo wird nicht nach Lux
+  geregelt, sondern konstant eingeschaltet. Nachtlicht und Ruhemodus haben
+  immer Vorrang und werden nie übersteuert. Nachtlicht-Zeiträume bei
+  deaktivierter Nachtlicht-Funktion gelten als „Aus“ (vorher griff der
+  Override dort nicht).
 
 ### 2026.10.19.2
 - **Ruhemodus: dritte Aktion „🚶 Nachtlicht bei Bewegung“.** Solange der Ruhemodus

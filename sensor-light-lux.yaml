@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 2026.10.19.2**
+    **Version: 2026.10.25**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -82,6 +82,13 @@ blueprint:
 
     <details>
     <summary><b>Changelog:</b> 👈</summary>
+
+    **2026.10.25** – Modus-Override: neue Auswahl "Übersteuerte Modi" (Aus,
+    Lux-Regelung, Konstant; Standard: nur Aus = bisheriges Verhalten). Damit
+    lässt sich z.B. bei geschlossenem Rollo die Lux-Regelung durch Konstante
+    Helligkeit ersetzen. Nachtlicht und Ruhemodus haben weiterhin immer
+    Vorrang. Zeiträume mit Nachtlicht bei deaktivierter Nachtlicht-Funktion
+    zählen als "Aus".
 
     **2026.10.19.2** – Ruhemodus: dritte Aktion "🚶 Nachtlicht bei Bewegung". Solange
     der Ruhemodus an ist, läuft unabhängig vom Zeitraum der Nachtlicht-Modus:
@@ -1493,15 +1500,13 @@ blueprint:
         mode_override_switch:
           name: Modus-Override – Schalter (Optional)
           description: >-
-            Optionaler input_boolean- oder binary_sensor-Schalter, der einen aktiven
-            Zeitraum mit Modus "⛔ Aus" übersteuert. Ist er an UND der aktuelle Zeitraum
-            steht auf "Aus", läuft bei Bewegung stattdessen der unten gewählte Modus
-            (Lux-Regelung oder Konstante Helligkeit) – z.B. um die Lux-Regelung außerhalb
-            der sonst konfigurierten Zeiten einmalig zu aktivieren. Steht der aktuelle
-            Zeitraum bereits auf Lux/Konstant, ändert dieser Schalter nichts. Nachtlicht
-            hat immer Vorrang und wird durch diesen Schalter nicht überschrieben. Es wird
-            nur der Zustand gelesen (kein Service-Aufruf) – ein binary_sensor eignet sich
-            daher genauso wie ein manuell schaltbarer input_boolean-Helfer.
+            Optionaler input_boolean- oder binary_sensor-Schalter. Ist er an und steht
+            der aktuelle Zeitraum auf einem der unten gewählten "Übersteuerten Modi",
+            läuft bei Bewegung stattdessen der Ziel-Modus (Lux-Regelung oder Konstante
+            Helligkeit). Nachtlicht und ein aktiver Ruhemodus haben immer Vorrang und
+            werden nie übersteuert. Es wird nur der Zustand gelesen (kein Service-Aufruf)
+            – ein binary_sensor (z.B. "Rollo nicht offen") eignet sich daher genauso wie
+            ein manuell schaltbarer input_boolean-Helfer.
           default: []
           selector:
             entity:
@@ -1512,11 +1517,30 @@ blueprint:
           name: Modus-Override – Ziel-Modus
           description: >-
             Modus, der aktiviert wird, wenn der Modus-Override-Schalter an ist und der
-            aktuelle Zeitraum auf "Aus" steht.
+            aktuelle Zeitraum auf einem der übersteuerten Modi steht.
           default: "lux"
           selector:
             select:
               options:
+                - label: "🔆 Lux-Regelung"
+                  value: "lux"
+                - label: "💡 Konstante Helligkeit"
+                  value: "constant"
+        mode_override_modes:
+          name: Modus-Override – Übersteuerte Modi
+          description: >-
+            Zeitraum-Modi, die der Override ersetzt. Beispiel Rollo: Ziel-Modus
+            "Konstante Helligkeit" + hier nur "Lux-Regelung" → bei geschlossenem Rollo
+            wird nicht geregelt, sondern konstant eingeschaltet; Zeiträume mit "Aus"
+            bleiben aus. Nachtlicht wird nie übersteuert (Nachtlicht-Zeiträume bei
+            deaktivierter Nachtlicht-Funktion gelten als "Aus").
+          default: ["off"]
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: "⛔ Aus"
+                  value: "off"
                 - label: "🔆 Lux-Regelung"
                   value: "lux"
                 - label: "💡 Konstante Helligkeit"
@@ -1710,6 +1734,8 @@ variables:
   bypass_switch: !input bypass_switch
   mode_override_switch: !input mode_override_switch
   mode_override_mode: !input mode_override_mode
+  mode_override_modes: !input mode_override_modes
+  mode_override_active: "{{ mode_override_switch | length > 0 and is_state(mode_override_switch, 'on') }}"
   rest_mode_switch: !input rest_mode_switch
   rest_mode_action: !input rest_mode_action
   rest_mode_active: "{{ rest_mode_switch | length > 0 and is_state(rest_mode_switch, 'on') }}"
@@ -1737,12 +1763,13 @@ variables:
   effective_mode: >-
     {% if rest_mode_active and rest_mode_action == 'night_motion' %}
       night_light
-    {% elif active_mode == 'night_light' and include_night_light == 'night_light_disabled' %}
-      off
-    {% elif active_mode == 'off' and mode_override_switch | length > 0 and is_state(mode_override_switch, 'on') %}
-      {{ mode_override_mode }}
     {% else %}
-      {{ active_mode }}
+      {% set base_mode = 'off' if active_mode == 'night_light' and include_night_light == 'night_light_disabled' else active_mode %}
+      {% if mode_override_active and base_mode in mode_override_modes %}
+        {{ mode_override_mode }}
+      {% else %}
+        {{ base_mode }}
+      {% endif %}
     {% endif %}
 
   lamp2_active: "{{ light_entity_2 | length > 0 }}"
