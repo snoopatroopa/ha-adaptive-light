@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 💡 Sensor Light – Lux-Regelung
 
-    **Version: 2026.10.25.2**
+    **Version: 2026.11.05**
 
 
     Bewegungsgesteuerte Lichtregelung mit aktivem Lux-Abgleich.
@@ -82,6 +82,13 @@ blueprint:
 
     <details>
     <summary><b>Changelog:</b> 👈</summary>
+
+    **2026.11.05** – Neuer Reiter "🔌 Schalter-Ziele" (unter Nachtlicht): beliebig
+    viele `switch`-Entitäten (per "Ziel hinzufügen" auch Geräte, Bereiche,
+    Etagen, Labels) werden zusammen mit den Lampen geschaltet. Einschalten nur
+    in den gewählten Modi (Lux, Konstant, Nachtlicht, Zusatz-Trigger), Ausschalten
+    an allen Stellen, an denen die Automation die Lampen ausschaltet. Ohne
+    Auswahl ändert sich nichts.
 
     **2026.10.25.2** – Neu: Konstant-Helligkeit (%) pro Zeitraum im Reiter
     "Zeiträume & Betriebsmodi". Gilt für alle Lampen, wenn der Zeitraum (oder
@@ -1518,6 +1525,47 @@ blueprint:
                   value: "night_light_disabled"
 
     # ═══════════════════════════════════════════════════════════════
+    switch_targets_settings:
+      name: "🔌 Schalter-Ziele (Optional)"
+      icon: mdi:power-socket-eu
+      collapsed: true
+      input:
+        switch_targets:
+          name: Schalter-Ziele
+          description: >-
+            Zusätzliche Schalter (Domain `switch`, z.B. Zwischenstecker, Relais,
+            nicht dimmbare Lampen), die zusammen mit den Lampen geschaltet werden.
+            Über "Ziel hinzufügen" lassen sich beliebig viele Entitäten, Geräte,
+            Bereiche, Etagen oder Labels wählen – berücksichtigt werden davon nur
+            Entitäten der Domain `switch`. Eingeschaltet wird nur in den unten
+            gewählten Modi; ausgeschaltet wird immer, wenn die Automation die
+            Lampen ausschaltet (Nachlauf, Auto-Off, Ruhemodus, Aufräumen).
+          default: {}
+          selector:
+            target:
+              entity:
+                - domain: switch
+        switch_targets_modes:
+          name: Schalter-Ziele – Einschalten in Modi
+          description: >-
+            In welchen Modi die Schalter-Ziele mit eingeschaltet werden. In nicht
+            gewählten Modi werden sie beim Einschalten der Lampen ausgeschaltet,
+            falls sie noch an sind. Ruhemodus "Nachtlicht" zählt als Nachtlicht.
+          default: ["lux", "constant", "night_light", "switch_trigger"]
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: "🔆 Lux-Regelung"
+                  value: "lux"
+                - label: "💡 Konstante Helligkeit"
+                  value: "constant"
+                - label: "🌙 Nachtlicht"
+                  value: "night_light"
+                - label: "🔀 Zusatz-Trigger"
+                  value: "switch_trigger"
+
+    # ═══════════════════════════════════════════════════════════════
     switch_trigger_settings:
       name: "🔀 Zusatz-Trigger – Schalter (Optional)"
       icon: mdi:toggle-switch
@@ -1817,6 +1865,23 @@ variables:
   period_5_constant_bri: !input period_5_constant_bri
   period_6_constant_bri: !input period_6_constant_bri
   include_night_light: !input include_night_light
+  switch_targets: !input switch_targets
+  switch_targets_modes: !input switch_targets_modes
+  # Target-Auswahl (Entitäten/Geräte/Bereiche/Etagen/Labels) → Liste der switch.*-Entitäten
+  switch_target_entities: >-
+    {% set t = switch_targets if switch_targets is mapping else {} %}
+    {% set ns = namespace(e=[]) %}
+    {% set v = t.get('entity_id', []) %}
+    {% set ns.e = ns.e + ([v] if v is string else v | list) %}
+    {% set v = t.get('device_id', []) %}
+    {% for x in ([v] if v is string else v) %}{% set ns.e = ns.e + device_entities(x) | list %}{% endfor %}
+    {% set v = t.get('area_id', []) %}
+    {% for x in ([v] if v is string else v) %}{% set ns.e = ns.e + area_entities(x) | list %}{% endfor %}
+    {% set v = t.get('floor_id', []) %}
+    {% for x in ([v] if v is string else v) %}{% for a in floor_areas(x) %}{% set ns.e = ns.e + area_entities(a) | list %}{% endfor %}{% endfor %}
+    {% set v = t.get('label_id', []) %}
+    {% for x in ([v] if v is string else v) %}{% set ns.e = ns.e + label_entities(x) | list %}{% endfor %}
+    {{ ns.e | select('match', 'switch[.]') | unique | list }}
   include_switch_trigger: !input include_switch_trigger
   switch_trigger_entity: !input switch_trigger_entity
   switch_off_mode: !input switch_off_mode
@@ -2080,6 +2145,12 @@ action:
                     entity_id: "{{ light_entity_5 }}"
                   data:
                     transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ switch_target_entities | length > 0 }}"
+              then:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ switch_target_entities }}"
 
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -2207,6 +2278,20 @@ action:
                         entity_id: "{{ light_entity_5 }}"
                       data:
                         color_temp_kelvin: "{{ lamp5_color_temp_kelvin | int }}"
+        # Schalter-Ziele: an, wenn Modus gewählt – sonst aus
+        - if:
+            - "{{ switch_target_entities | length > 0 }}"
+          then:
+            - if:
+                - "{{ 'switch_trigger' in switch_targets_modes }}"
+              then:
+                - action: switch.turn_on
+                  target:
+                    entity_id: "{{ switch_target_entities }}"
+              else:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ switch_target_entities }}"
 
         - choose:
             - conditions: ["{{ switch_off_mode == 'by_switch' }}"]
@@ -2279,6 +2364,12 @@ action:
                 entity_id: "{{ light_entity_5 }}"
               data:
                 transition: "{{ light_transition_off | float }}"
+        - if:
+            - "{{ switch_target_entities | length > 0 }}"
+          then:
+            - action: switch.turn_off
+              target:
+                entity_id: "{{ switch_target_entities }}"
 
     # ──────────────────────────────────────────────────────────────────────────
     # Branch 2: BEWEGUNG-AUS (eigenständiger Aus-Trigger)
@@ -2348,6 +2439,12 @@ action:
                     entity_id: "{{ light_entity_5 }}"
                   data:
                     transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ switch_target_entities | length > 0 }}"
+              then:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ switch_target_entities }}"
 
     # ──────────────────────────────────────────────────────────────────────────
     # Branch 3: NACHTLICHT
@@ -2566,6 +2663,20 @@ action:
                     entity_id: "{{ light_entity_5 }}"
                   data:
                     transition: "{{ light_transition_off | float }}"
+        # Schalter-Ziele: an, wenn Modus gewählt – sonst aus
+        - if:
+            - "{{ switch_target_entities | length > 0 }}"
+          then:
+            - if:
+                - "{{ 'night_light' in switch_targets_modes }}"
+              then:
+                - action: switch.turn_on
+                  target:
+                    entity_id: "{{ switch_target_entities }}"
+              else:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ switch_target_entities }}"
 
         - if:
             - condition: not
@@ -2622,6 +2733,12 @@ action:
                     entity_id: "{{ light_entity_5 }}"
                   data:
                     transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ switch_target_entities | length > 0 }}"
+              then:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ switch_target_entities }}"
 
     # ──────────────────────────────────────────────────────────────────────────
     # Branch 4: AUS
@@ -2662,6 +2779,7 @@ action:
             - "{{ lamp3_active and is_state(light_entity_3, 'on') }}"
             - "{{ lamp4_active and is_state(light_entity_4, 'on') }}"
             - "{{ lamp5_active and is_state(light_entity_5, 'on') }}"
+            - "{{ switch_target_entities | select('is_state', 'on') | list | count > 0 }}"
       sequence:
         - delay:
             minutes: >-
@@ -2708,6 +2826,12 @@ action:
                     entity_id: "{{ light_entity_5 }}"
                   data:
                     transition: "{{ light_transition_off | float }}"
+            - if:
+                - "{{ switch_target_entities | length > 0 }}"
+              then:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ switch_target_entities }}"
 
     # ──────────────────────────────────────────────────────────────────────────
     # Default: LUX-REGELUNG oder KONSTANT
@@ -2898,6 +3022,20 @@ action:
                     data:
                       brightness_pct: "{{ on_bri_5 }}"
                       transition: "{{ light_transition | float }}"
+          # Schalter-Ziele: an, wenn Modus gewählt – sonst aus
+          - if:
+              - "{{ switch_target_entities | length > 0 }}"
+            then:
+              - if:
+                  - "{{ effective_mode in switch_targets_modes }}"
+                then:
+                  - action: switch.turn_on
+                    target:
+                      entity_id: "{{ switch_target_entities }}"
+                else:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: "{{ switch_target_entities }}"
 
           # ── Lux-Regelschleife ─────────────────────────────────────────────
           - if:
@@ -2990,6 +3128,12 @@ action:
                                             entity_id: "{{ light_entity_5 }}"
                                           data:
                                             transition: "{{ light_transition_off | float }}"
+                                    - if:
+                                        - "{{ switch_target_entities | length > 0 }}"
+                                      then:
+                                        - action: switch.turn_off
+                                          target:
+                                            entity_id: "{{ switch_target_entities }}"
                                 # Zu dunkel → heller
                                 - conditions: ["{{ lux_deviation > lux_hysteresis }}"]
                                   sequence:
@@ -3148,6 +3292,12 @@ action:
                       entity_id: "{{ light_entity_5 }}"
                     data:
                       transition: "{{ light_transition_off | float }}"
+              - if:
+                  - "{{ switch_target_entities | length > 0 }}"
+                then:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: "{{ switch_target_entities }}"
         # Ruhemodus beendet bei Anwesenheit, aber aktueller Modus schaltet nicht ein
         # (Modus "Aus" oder zu hell) → evtl. noch leuchtendes Ruhemodus-Nachtlicht aus.
         else:
@@ -3193,3 +3343,9 @@ action:
                       entity_id: "{{ light_entity_5 }}"
                     data:
                       transition: "{{ light_transition_off | float }}"
+              - if:
+                  - "{{ switch_target_entities | length > 0 }}"
+                then:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: "{{ switch_target_entities }}"

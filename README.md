@@ -3,7 +3,7 @@
 **Home Assistant Blueprint** für bewegungsgesteuerte, lux-geregelte Beleuchtung.
 
 [![HA Blueprint](https://img.shields.io/badge/Home%20Assistant-Blueprint-blue?logo=home-assistant)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/Version-2026.10.25.2-green)]()
+[![Version](https://img.shields.io/badge/Version-2026.11.05-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -24,6 +24,7 @@
 | 🎨 **RGB & Farbtemperatur** | Pro Lampe und Modus konfigurierbar |
 | 🔓 **Bypass** | `input_boolean` hält Licht dauerhaft aktiv |
 | 😴 **Ruhemodus** | Schalter pausiert die Automation – Lampen aus, dauerhaft Nachtlicht oder Nachtlicht bei Bewegung |
+| 🔌 **Schalter-Ziele** | Beliebig viele `switch`-Entitäten schalten mit den Lampen mit (pro Modus wählbar) |
 | 👥 **Bis zu 5 Lampen** | Individuell kalibrierbar |
 | 📡 **Bis zu 5 Sensoren** | Bewegungs- und Präsenzsensoren, inkl. Gruppen |
 
@@ -88,6 +89,15 @@ Trigger (Bewegung an / Bewegung aus / Schalter / Lux-Drop / Ruhemodus an/aus)
 ---
 
 ## Changelog
+
+### 2026.11.05
+- **Neuer Reiter „🔌 Schalter-Ziele“** (unterhalb Nachtlicht). Über „Ziel
+  hinzufügen“ beliebig viele `switch`-Entitäten (oder Geräte/Bereiche/Etagen/
+  Labels – berücksichtigt werden nur deren `switch`-Entitäten) wählen, die
+  zusammen mit den Lampen geschaltet werden. Mehrfachauswahl „Einschalten in
+  Modi“ (Lux, Konstant, Nachtlicht, Zusatz-Trigger; Standard: alle). Aus geht
+  es immer zusammen mit den Lampen (Nachlauf, Auto-Off, Ruhemodus, Aufräumen).
+  Ohne Auswahl bleibt alles beim Alten.
 
 ### 2026.10.25.2
 - **Konstant-Helligkeit pro Zeitraum.** Neue Einstellung `period_N_constant_bri`
