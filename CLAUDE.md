@@ -6,7 +6,7 @@
 ## Repo
 - GitHub: `snoopatroopa/ha-adaptive-light`
 - Blueprint-Datei: `sensor-light-lux.yaml`
-- Aktuelle Version: **2026.10.25.2** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
+- Aktuelle Version: **2026.11.05** (Repo nutzt Datumsformat statt vX.Y, siehe Version-Badge in README.md)
 
 ---
 
@@ -72,6 +72,7 @@ Trigger: motion | motion_off | switch | lux_drop | rest_on | rest_off
 | Farben | RGB überschreibt Farbtemperatur; Nachtlicht-Farbe unabhängig von Hauptfarbe |
 | `lamp2_active` | `{{ light_entity_2 | length > 0 }}` – prüft ob Entität konfiguriert |
 | Ruhemodus | Eigenständiger optionaler Schalter (`rest_mode_switch` + `rest_mode_action`). Pausiert intern statt `automation.turn_off` (sonst käme `rest_off` nie an). Nutzt die bestehenden Nachtlicht-Einstellungen pro Lampe statt eines zweiten Lampen-Profils. Höchste Priorität (Branch 0) |
+| Schalter-Ziele | Reiter `switch_targets_settings` (unter Nachtlicht): `target`-Selector (Domain `switch`, „Ziel hinzufügen“) + `switch_targets_modes`. Variable `switch_target_entities` löst Entitäten/Geräte/Bereiche/Etagen/Labels zu `switch.*`-Liste auf. Einschalten an den 3 Ein-Punkten (Branch 1, 3, Default) nur wenn Modus gewählt, sonst aktiv aus. Ausschalten an **allen** 8 „alle Lampen aus“-Stellen (inkl. Auto-Off); Branch 5 greift auch, wenn nur noch ein Schalter-Ziel an ist |
 | Modus-Override | Eigenständiger optionaler Schalter (`mode_override_switch` + `mode_override_mode` + `mode_override_modes`), unabhängig vom bestehenden Bypass. Seit 2026.10.25 greift er auf die in `mode_override_modes` gewählten Basis-Modi (`off`/`lux`/`constant`, Default `['off']` = altes Verhalten). Nachtlicht wird **nie** übersteuert (ausdrücklicher Nutzerwunsch), Ruhemodus `night_motion` ebenfalls nicht. Anwendungsfall: Rollo zu → Lux durch Konstant ersetzen |
 
 ---
@@ -174,6 +175,9 @@ mode_override_switch: # !input, optionaler input_boolean/binary_sensor für Modu
 mode_override_mode:   # !input, 'lux' | 'constant' – Ziel-Modus des Overrides
 mode_override_modes:  # !input, Liste aus 'off'|'lux'|'constant' – übersteuerte Basis-Modi
 mode_override_active: # true wenn mode_override_switch konfiguriert und 'on'
+switch_targets:       # !input, target-Selector (switch) – Schalter-Ziele
+switch_targets_modes: # !input, Liste aus 'lux'|'constant'|'night_light'|'switch_trigger'
+switch_target_entities: # aufgelöste Liste switch.* (leer = Feature aus)
 rest_mode_switch:     # !input, optionaler input_boolean/binary_sensor für Ruhemodus
 rest_mode_action:     # !input, 'off' | 'night_light' | 'night_motion' – Aktion des Ruhemodus
 rest_mode_active:     # true wenn rest_mode_switch konfiguriert und 'on'
@@ -210,6 +214,15 @@ with open('sensor-light-lux.yaml') as f:
 ---
 
 ## Changelog
+
+### 2026.11.05 – Schalter-Ziele
+**Änderung:** Neuer Reiter `switch_targets_settings` mit `switch_targets`
+(target-Selector, Domain `switch`) und `switch_targets_modes`. Schalter gehen
+an den Ein-Punkten der Lampen mit an (bzw. aus, wenn der Modus nicht gewählt
+ist) und an allen Aus-Punkten mit aus. Branch 5 berücksichtigt Schalter-Ziele.
+**Grund:** Nutzer will neben Lampen auch Switches (mehrere, per „Ziel
+hinzufügen“) mitschalten. Aus bewusst modusunabhängig, damit nach Moduswechsel
+kein Schalter verwaist.
 
 ### 2026.10.25.2 – Konstant-Helligkeit pro Zeitraum
 **Änderung:** Neue Inputs `period_1..6_constant_bri` (0–100 %, Default 0) im
